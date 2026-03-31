@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  password        String
+  name            String?
+  role            Role             @default(MEMBER)
+  sessions        Session[]
+  slackWorkspaces SlackWorkspace[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model SlackWorkspace {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  teamId                String
+  teamName              String
+  botToken              String    // encrypted
+  botUserId             String
+  accessToken           String?   // encrypted, user token if requested
+  refreshToken          String?   // encrypted
+  tokenExpiresAt        DateTime?
+  scopes                String    // comma-separated bot scopes
+  userScopes            String?   // comma-separated user scopes
+  webhookUrl            String?
+  webhookChannel        String?
+  webhookConfigurationUrl String?
+  isActive              Boolean   @default(true)
+  connectedAt           DateTime  @default(now())
+  disconnectedAt        DateTime?
+  lastTokenRefreshAt    DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([userId, teamId])
+  @@index([teamId])
+  @@index([userId, isActive])
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
