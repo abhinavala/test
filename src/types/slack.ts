@@ -75,6 +75,28 @@ export interface OAuthAccessResult {
   error?: string;
 }
 
+export interface SlackWorkspace {
+  id: string;
+  name: string;
+  accessToken: string;
+  refreshToken?: string;
+  botUserId: string;
+  connectedAt: Date;
+  lastUsed: Date;
+}
+
+export interface OAuthStartResponse {
+  authUrl: string;
+  state: string;
+}
+
+export interface SlackConnection {
+  workspaceId: string;
+  workspaceName: string;
+  isActive: boolean;
+  connectedAt: Date;
+}
+
 export interface OAuthStatePayload {
   userId: string;
   timestamp: number;

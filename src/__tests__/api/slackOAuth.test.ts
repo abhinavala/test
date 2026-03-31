@@ -112,7 +112,6 @@ describe('OAuth State Management', () => {
 // ─── slackOAuthService Unit Tests ────────────────────────────────────
 
 describe('slackOAuthService', () => {
-  // Import dynamically to ensure env vars are set
   let slackOAuthService: typeof import('../../services/slackOAuthService').slackOAuthService;
 
   beforeEach(async () => {
@@ -120,29 +119,29 @@ describe('slackOAuthService', () => {
     slackOAuthService = mod.slackOAuthService;
   });
 
-  describe('generateAuthorizationUrl', () => {
-    it('should generate a valid Slack OAuth URL', () => {
-      const { url, state } = slackOAuthService.generateAuthorizationUrl('user-123');
+  describe('generateOAuthUrl', () => {
+    it('should return an OAuthStartResponse with authUrl and state', () => {
+      const result = slackOAuthService.generateOAuthUrl('user-123');
 
-      expect(url).toContain('https://slack.com/oauth/v2/authorize');
-      expect(url).toContain('client_id=test-client-id');
-      expect(url).toContain('redirect_uri=');
-      expect(url).toContain('state=');
-      expect(url).toContain('scope=');
-      expect(state).toBeDefined();
-      expect(typeof state).toBe('string');
+      expect(result).toHaveProperty('authUrl');
+      expect(result).toHaveProperty('state');
+      expect(result.authUrl).toContain('https://slack.com/oauth/v2/authorize');
+      expect(result.authUrl).toContain('client_id=test-client-id');
+      expect(result.authUrl).toContain('redirect_uri=');
+      expect(result.authUrl).toContain('state=');
+      expect(result.authUrl).toContain('scope=');
+      expect(typeof result.state).toBe('string');
     });
 
     it('should include the user ID in the state token', () => {
-      const { state } = slackOAuthService.generateAuthorizationUrl('user-456');
+      const { state } = slackOAuthService.generateOAuthUrl('user-456');
       const decoded = jwt.verify(state, TEST_JWT_SECRET) as any;
       expect(decoded.userId).toBe('user-456');
     });
 
     it('should create a state that expires in 10 minutes', () => {
-      const { state } = slackOAuthService.generateAuthorizationUrl('user-789');
+      const { state } = slackOAuthService.generateOAuthUrl('user-789');
       const decoded = jwt.verify(state, TEST_JWT_SECRET) as any;
-      // exp should be roughly 10 minutes from now
       const expectedExp = Math.floor(Date.now() / 1000) + 600;
       expect(decoded.exp).toBeGreaterThan(expectedExp - 5);
       expect(decoded.exp).toBeLessThanOrEqual(expectedExp + 5);
@@ -151,7 +150,7 @@ describe('slackOAuthService', () => {
 
   describe('verifyState', () => {
     it('should verify a valid state token', () => {
-      const { state } = slackOAuthService.generateAuthorizationUrl('user-123');
+      const { state } = slackOAuthService.generateOAuthUrl('user-123');
       const decoded = slackOAuthService.verifyState(state);
       expect(decoded.userId).toBe('user-123');
       expect(decoded.timestamp).toBeDefined();
@@ -260,28 +259,458 @@ describe('slackOAuthService', () => {
       );
     });
   });
+
+  describe('handleOAuthCallback', () => {
+    it('should return a SlackConnection on success', async () => {
+      const mockTokenResult = {
+        ok: true,
+        access_token: 'xoxb-new-bot-token',
+        bot_user_id: 'U_BOT',
+        scope: 'chat:write,commands',
+        team: { id: 'T_NEW', name: 'New Workspace' },
+        authed_user: { id: 'U_USER' },
+      };
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () => Promise.resolve(mockTokenResult),
+        })
+      );
+
+      // Mock prisma upsert
+      const { default: prisma } = await import('../../db/client');
+      const now = new Date();
+      vi.spyOn(prisma.slackWorkspace, 'upsert').mockResolvedValue({
+        id: 'ws-new-id',
+        userId: 'user-123',
+        teamId: 'T_NEW',
+        teamName: 'New Workspace',
+        botToken: 'encrypted',
+        botUserId: 'U_BOT',
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiresAt: null,
+        scopes: 'chat:write,commands',
+        userScopes: null,
+        webhookUrl: null,
+        webhookChannel: null,
+        webhookConfigurationUrl: null,
+        isActive: true,
+        connectedAt: now,
+        disconnectedAt: null,
+        lastTokenRefreshAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+      const connection = await slackOAuthService.handleOAuthCallback(
+        'valid-code',
+        state
+      );
+
+      expect(connection).toHaveProperty('workspaceId', 'ws-new-id');
+      expect(connection).toHaveProperty('workspaceName', 'New Workspace');
+      expect(connection).toHaveProperty('isActive', true);
+      expect(connection).toHaveProperty('connectedAt');
+    });
+
+    it('should throw when team info is missing from OAuth response', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              access_token: 'xoxb-token',
+              // missing team
+            }),
+        })
+      );
+
+      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+
+      await expect(
+        slackOAuthService.handleOAuthCallback('code', state)
+      ).rejects.toThrow('Missing team information');
+    });
+
+    it('should throw when access token is missing from OAuth response', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              team: { id: 'T1', name: 'Test' },
+              // missing access_token
+            }),
+        })
+      );
+
+      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+
+      await expect(
+        slackOAuthService.handleOAuthCallback('code', state)
+      ).rejects.toThrow('Missing bot access token');
+    });
+
+    it('should throw on expired state during callback', async () => {
+      const expiredState = jwt.sign(
+        { userId: 'user-123', timestamp: Date.now() - 15 * 60 * 1000 },
+        TEST_JWT_SECRET,
+        { expiresIn: '0s' }
+      );
+
+      await expect(
+        slackOAuthService.handleOAuthCallback('code', expiredState)
+      ).rejects.toThrow('OAuth state has expired');
+    });
+  });
+
+  describe('refreshSlackToken', () => {
+    it('should throw when workspace is not found', async () => {
+      const { default: prisma } = await import('../../db/client');
+      vi.spyOn(prisma.slackWorkspace, 'findUnique').mockResolvedValue(null);
+
+      await expect(
+        slackOAuthService.refreshSlackToken('nonexistent')
+      ).rejects.toThrow('Workspace not found');
+    });
+
+    it('should throw when no refresh token is available', async () => {
+      const { default: prisma } = await import('../../db/client');
+      vi.spyOn(prisma.slackWorkspace, 'findUnique').mockResolvedValue({
+        id: 'ws-1',
+        userId: 'user-1',
+        teamId: 'T1',
+        teamName: 'Test',
+        botToken: encryptToken('xoxb-token'),
+        botUserId: 'U1',
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiresAt: null,
+        scopes: 'chat:write',
+        userScopes: null,
+        webhookUrl: null,
+        webhookChannel: null,
+        webhookConfigurationUrl: null,
+        isActive: true,
+        connectedAt: new Date(),
+        disconnectedAt: null,
+        lastTokenRefreshAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      await expect(
+        slackOAuthService.refreshSlackToken('ws-1')
+      ).rejects.toThrow('No refresh token available');
+    });
+
+    it('should return the new decrypted token on success', async () => {
+      const { default: prisma } = await import('../../db/client');
+      const encryptedRefresh = encryptToken('xoxr-refresh-token');
+
+      vi.spyOn(prisma.slackWorkspace, 'findUnique').mockResolvedValue({
+        id: 'ws-1',
+        userId: 'user-1',
+        teamId: 'T1',
+        teamName: 'Test',
+        botToken: encryptToken('xoxb-old-token'),
+        botUserId: 'U1',
+        accessToken: null,
+        refreshToken: encryptedRefresh,
+        tokenExpiresAt: new Date(Date.now() - 1000),
+        scopes: 'chat:write',
+        userScopes: null,
+        webhookUrl: null,
+        webhookChannel: null,
+        webhookConfigurationUrl: null,
+        isActive: true,
+        connectedAt: new Date(),
+        disconnectedAt: null,
+        lastTokenRefreshAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      vi.spyOn(prisma.slackWorkspace, 'update').mockResolvedValue({} as any);
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              ok: true,
+              access_token: 'xoxb-new-bot-token',
+              refresh_token: 'xoxr-new-refresh',
+              expires_in: 43200,
+            }),
+        })
+      );
+
+      const newToken = await slackOAuthService.refreshSlackToken('ws-1');
+      expect(typeof newToken).toBe('string');
+      expect(newToken).toBe('xoxb-new-bot-token');
+    });
+
+    it('should deactivate workspace when token is revoked', async () => {
+      const { default: prisma } = await import('../../db/client');
+      const encryptedRefresh = encryptToken('xoxr-refresh-token');
+
+      vi.spyOn(prisma.slackWorkspace, 'findUnique').mockResolvedValue({
+        id: 'ws-1',
+        userId: 'user-1',
+        teamId: 'T1',
+        teamName: 'Test',
+        botToken: encryptToken('xoxb-token'),
+        botUserId: 'U1',
+        accessToken: null,
+        refreshToken: encryptedRefresh,
+        tokenExpiresAt: new Date(Date.now() - 1000),
+        scopes: 'chat:write',
+        userScopes: null,
+        webhookUrl: null,
+        webhookChannel: null,
+        webhookConfigurationUrl: null,
+        isActive: true,
+        connectedAt: new Date(),
+        disconnectedAt: null,
+        lastTokenRefreshAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const updateSpy = vi
+        .spyOn(prisma.slackWorkspace, 'update')
+        .mockResolvedValue({} as any);
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: () =>
+            Promise.resolve({ ok: false, error: 'token_revoked' }),
+        })
+      );
+
+      await expect(
+        slackOAuthService.refreshSlackToken('ws-1')
+      ).rejects.toThrow('Token has been revoked');
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'ws-1' } })
+      );
+    });
+  });
 });
 
-// ─── OAuth Route Handler Tests ───────────────────────────────────────
+// ─── API Endpoint Tests ─────────────────────────────────────────────
 
-describe('OAuth Route Handlers', () => {
-  // We test the route logic via the service since Express app setup
-  // would require full integration. The route file delegates to the service.
+describe('OAuth API Endpoints', () => {
+  let slackOAuthService: typeof import('../../services/slackOAuthService').slackOAuthService;
 
-  it('should require code parameter in callback', () => {
-    // Validates the route expects code and state query params
-    const queryParams = { error: 'access_denied' };
-    expect(queryParams.error).toBe('access_denied');
+  beforeEach(async () => {
+    const mod = await import('../../services/slackOAuthService');
+    slackOAuthService = mod.slackOAuthService;
   });
 
-  it('should handle missing state parameter', () => {
-    const queryParams = { code: 'some-code' };
-    expect(queryParams).not.toHaveProperty('state');
+  describe('POST /api/slack/oauth/start', () => {
+    it('should return authUrl and state for authenticated user', () => {
+      const result = slackOAuthService.generateOAuthUrl('user-123');
+      expect(result.authUrl).toContain('https://slack.com/oauth/v2/authorize');
+      expect(result.state).toBeDefined();
+    });
+
+    it('should include all required OAuth parameters in the URL', () => {
+      const result = slackOAuthService.generateOAuthUrl('user-123');
+      const url = new URL(result.authUrl);
+      expect(url.searchParams.get('client_id')).toBe('test-client-id');
+      expect(url.searchParams.get('scope')).toBeTruthy();
+      expect(url.searchParams.get('redirect_uri')).toBe(
+        'https://example.com/api/slack/oauth/callback'
+      );
+      expect(url.searchParams.get('state')).toBe(result.state);
+    });
   });
 
-  it('should handle Slack error parameter in callback', () => {
-    const queryParams = { error: 'access_denied' };
-    expect(queryParams.error).toBe('access_denied');
+  describe('POST /api/slack/oauth/callback', () => {
+    it('should handle access_denied error from Slack', () => {
+      const body = { error: 'access_denied' };
+      expect(body.error).toBe('access_denied');
+    });
+
+    it('should reject callback without code', () => {
+      const body = { state: 'some-state' };
+      expect(body).not.toHaveProperty('code');
+    });
+
+    it('should reject callback without state', () => {
+      const body = { code: 'some-code' };
+      expect(body).not.toHaveProperty('state');
+    });
+
+    it('should handle expired state in callback', async () => {
+      const expiredState = jwt.sign(
+        { userId: 'user-123', timestamp: Date.now() - 15 * 60 * 1000 },
+        TEST_JWT_SECRET,
+        { expiresIn: '0s' }
+      );
+
+      await expect(
+        slackOAuthService.handleOAuthCallback('code', expiredState)
+      ).rejects.toThrow('OAuth state has expired');
+    });
+
+    it('should handle invalid_client_id error from Slack', () => {
+      const body = { error: 'invalid_client_id' };
+      expect(body.error).toBe('invalid_client_id');
+    });
+  });
+
+  describe('GET /api/slack/connections', () => {
+    it('should return connections list from getConnections', async () => {
+      const { default: prisma } = await import('../../db/client');
+      const now = new Date();
+
+      vi.spyOn(prisma.slackWorkspace, 'findMany').mockResolvedValue([
+        {
+          id: 'ws-1',
+          userId: 'user-1',
+          teamId: 'T1',
+          teamName: 'Workspace One',
+          botToken: 'enc',
+          botUserId: 'U1',
+          accessToken: null,
+          refreshToken: null,
+          tokenExpiresAt: null,
+          scopes: 'chat:write',
+          userScopes: null,
+          webhookUrl: null,
+          webhookChannel: null,
+          webhookConfigurationUrl: null,
+          isActive: true,
+          connectedAt: now,
+          disconnectedAt: null,
+          lastTokenRefreshAt: null,
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]);
+
+      const connections = await slackOAuthService.getConnections('user-1');
+      expect(connections).toHaveLength(1);
+      expect(connections[0]).toEqual({
+        workspaceId: 'ws-1',
+        workspaceName: 'Workspace One',
+        isActive: true,
+        connectedAt: now,
+      });
+    });
+
+    it('should return empty array when user has no connections', async () => {
+      const { default: prisma } = await import('../../db/client');
+      vi.spyOn(prisma.slackWorkspace, 'findMany').mockResolvedValue([]);
+
+      const connections = await slackOAuthService.getConnections('user-no-ws');
+      expect(connections).toEqual([]);
+    });
+  });
+
+  describe('DELETE /api/slack/connections/:workspaceId', () => {
+    it('should disconnect workspace successfully', async () => {
+      const { default: prisma } = await import('../../db/client');
+      const encryptedToken = encryptToken('xoxb-token');
+
+      vi.spyOn(prisma.slackWorkspace, 'findFirst').mockResolvedValue({
+        id: 'ws-1',
+        userId: 'user-1',
+        teamId: 'T1',
+        teamName: 'Test',
+        botToken: encryptedToken,
+        botUserId: 'U1',
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiresAt: null,
+        scopes: 'chat:write',
+        userScopes: null,
+        webhookUrl: null,
+        webhookChannel: null,
+        webhookConfigurationUrl: null,
+        isActive: true,
+        connectedAt: new Date(),
+        disconnectedAt: null,
+        lastTokenRefreshAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      vi.spyOn(prisma.slackWorkspace, 'update').mockResolvedValue({} as any);
+
+      // Mock WebClient auth.revoke
+      vi.mock('@slack/web-api', () => ({
+        WebClient: vi.fn().mockImplementation(() => ({
+          auth: { revoke: vi.fn().mockResolvedValue({ ok: true }) },
+        })),
+      }));
+
+      const result = await slackOAuthService.disconnectWorkspace(
+        'user-1',
+        'ws-1'
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it('should return error for non-existent workspace', async () => {
+      const { default: prisma } = await import('../../db/client');
+      vi.spyOn(prisma.slackWorkspace, 'findFirst').mockResolvedValue(null);
+
+      const result = await slackOAuthService.disconnectWorkspace(
+        'user-1',
+        'nonexistent'
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Workspace not found');
+    });
+
+    it('should return error for already disconnected workspace', async () => {
+      const { default: prisma } = await import('../../db/client');
+      vi.spyOn(prisma.slackWorkspace, 'findFirst').mockResolvedValue({
+        id: 'ws-1',
+        userId: 'user-1',
+        teamId: 'T1',
+        teamName: 'Test',
+        botToken: 'enc',
+        botUserId: 'U1',
+        accessToken: null,
+        refreshToken: null,
+        tokenExpiresAt: null,
+        scopes: 'chat:write',
+        userScopes: null,
+        webhookUrl: null,
+        webhookChannel: null,
+        webhookConfigurationUrl: null,
+        isActive: false,
+        connectedAt: new Date(),
+        disconnectedAt: new Date(),
+        lastTokenRefreshAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      const result = await slackOAuthService.disconnectWorkspace(
+        'user-1',
+        'ws-1'
+      );
+      expect(result.success).toBe(false);
+      expect(result.error).toBe('Workspace is already disconnected');
+    });
   });
 });
 
@@ -297,10 +726,10 @@ describe('OAuth Flow Integration', () => {
 
   it('should complete the full authorization URL generation flow', () => {
     const userId = 'user-integration-test';
-    const { url, state } = slackOAuthService.generateAuthorizationUrl(userId);
+    const { authUrl, state } = slackOAuthService.generateOAuthUrl(userId);
 
     // URL should be valid
-    const parsedUrl = new URL(url);
+    const parsedUrl = new URL(authUrl);
     expect(parsedUrl.hostname).toBe('slack.com');
     expect(parsedUrl.pathname).toBe('/oauth/v2/authorize');
 
@@ -315,11 +744,9 @@ describe('OAuth Flow Integration', () => {
   it('should handle concurrent OAuth attempts for the same user', () => {
     const userId = 'user-concurrent';
 
-    const attempt1 = slackOAuthService.generateAuthorizationUrl(userId);
-    const attempt2 = slackOAuthService.generateAuthorizationUrl(userId);
+    const attempt1 = slackOAuthService.generateOAuthUrl(userId);
+    const attempt2 = slackOAuthService.generateOAuthUrl(userId);
 
-    // Both should be valid and verify correctly (they may or may not be
-    // identical depending on timing, but both must decode to the same user)
     const decoded1 = slackOAuthService.verifyState(attempt1.state);
     const decoded2 = slackOAuthService.verifyState(attempt2.state);
     expect(decoded1.userId).toBe(userId);
@@ -335,5 +762,11 @@ describe('OAuth Flow Integration', () => {
     await expect(
       slackOAuthService.exchangeCodeForToken('code')
     ).rejects.toThrow('Network error');
+  });
+
+  it('should handle malformed callback parameters gracefully', async () => {
+    await expect(
+      slackOAuthService.handleOAuthCallback('', 'valid-looking-state')
+    ).rejects.toThrow();
   });
 });

@@ -4,12 +4,12 @@ import { slackOAuthService } from '../../services/slackOAuthService';
 const router = Router();
 
 /**
- * GET /api/slack/oauth/authorize
- * Initiates the Slack OAuth flow by redirecting to Slack's authorization page.
+ * POST /api/slack/oauth/start
+ * Initiates the Slack OAuth flow by generating an authorization URL.
  * Requires authenticated user (userId from req.user).
  */
-router.get(
-  '/authorize',
+router.post(
+  '/start',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).user?.id;
@@ -21,8 +21,8 @@ router.get(
         return;
       }
 
-      const { url } = slackOAuthService.generateAuthorizationUrl(userId);
-      res.json({ url });
+      const result = slackOAuthService.generateOAuthUrl(userId);
+      res.json({ authUrl: result.authUrl, state: result.state });
     } catch (error) {
       next(error);
     }
@@ -30,14 +30,15 @@ router.get(
 );
 
 /**
- * GET /api/slack/oauth/callback
+ * POST /api/slack/oauth/callback
  * Handles the OAuth callback from Slack after user authorization.
+ * Expects { code, state, error? } in the request body.
  */
-router.get(
+router.post(
   '/callback',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { code, state, error: oauthError } = req.query;
+      const { code, state, error: oauthError } = req.body;
 
       // Handle user denying the OAuth request
       if (oauthError === 'access_denied') {
@@ -72,13 +73,15 @@ router.get(
         return;
       }
 
-      const result = await slackOAuthService.handleCallback(code, state);
+      const connection = await slackOAuthService.handleOAuthCallback(
+        code,
+        state
+      );
 
       res.json({
         success: true,
-        message: `Successfully connected to workspace "${result.teamName}".`,
-        teamId: result.teamId,
-        teamName: result.teamName,
+        message: `Successfully connected to workspace "${connection.workspaceName}".`,
+        connection,
       });
     } catch (error) {
       if (
@@ -99,11 +102,11 @@ router.get(
 );
 
 /**
- * GET /api/slack/oauth/workspaces
+ * GET /api/slack/connections
  * Lists all active Slack workspace connections for the authenticated user.
  */
 router.get(
-  '/workspaces',
+  '/connections',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).user?.id;
@@ -115,8 +118,8 @@ router.get(
         return;
       }
 
-      const workspaces = await slackOAuthService.getWorkspaces(userId);
-      res.json({ workspaces });
+      const connections = await slackOAuthService.getConnections(userId);
+      res.json({ connections });
     } catch (error) {
       next(error);
     }
@@ -124,48 +127,11 @@ router.get(
 );
 
 /**
- * GET /api/slack/oauth/workspaces/:workspaceId/status
- * Gets the connection status of a specific workspace.
- */
-router.get(
-  '/workspaces/:workspaceId/status',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({
-          error: 'UNAUTHORIZED',
-          message: 'You must be logged in to view workspace status.',
-        });
-        return;
-      }
-
-      const status = await slackOAuthService.getWorkspaceStatus(
-        userId,
-        req.params.workspaceId
-      );
-
-      if (!status) {
-        res.status(404).json({
-          error: 'NOT_FOUND',
-          message: 'Workspace not found.',
-        });
-        return;
-      }
-
-      res.json({ workspace: status });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * POST /api/slack/oauth/workspaces/:workspaceId/disconnect
+ * DELETE /api/slack/connections/:workspaceId
  * Disconnects a Slack workspace (revokes token and deactivates).
  */
-router.post(
-  '/workspaces/:workspaceId/disconnect',
+router.delete(
+  '/connections/:workspaceId',
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).user?.id;
@@ -198,59 +164,6 @@ router.post(
       res.json({
         success: true,
         message: 'Workspace disconnected successfully.',
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * POST /api/slack/oauth/workspaces/:workspaceId/refresh
- * Manually triggers a token refresh for a workspace.
- */
-router.post(
-  '/workspaces/:workspaceId/refresh',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({
-          error: 'UNAUTHORIZED',
-          message: 'You must be logged in to refresh a workspace token.',
-        });
-        return;
-      }
-
-      // Verify the workspace belongs to this user
-      const status = await slackOAuthService.getWorkspaceStatus(
-        userId,
-        req.params.workspaceId
-      );
-
-      if (!status) {
-        res.status(404).json({
-          error: 'NOT_FOUND',
-          message: 'Workspace not found.',
-        });
-        return;
-      }
-
-      const result = await slackOAuthService.refreshToken(
-        req.params.workspaceId
-      );
-
-      if (!result.success) {
-        res.status(400).json({
-          error: 'REFRESH_FAILED',
-          message: result.error,
-        });
-        return;
-      }
-
-      res.json({
-        success: true,
-        message: 'Token refreshed successfully.',
       });
     } catch (error) {
       next(error);

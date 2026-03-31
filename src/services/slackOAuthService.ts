@@ -2,7 +2,13 @@ import jwt from 'jsonwebtoken';
 import { WebClient } from '@slack/web-api';
 import prisma from '../db/client';
 import { encryptToken, decryptToken } from '../models/SlackWorkspace';
-import { OAuthAccessResult, OAuthStatePayload, SlackConfig } from '../types/slack';
+import {
+  OAuthAccessResult,
+  OAuthStartResponse,
+  OAuthStatePayload,
+  SlackConfig,
+  SlackConnection,
+} from '../types/slack';
 import { validateSlackConfig } from '../config/slack';
 
 function getJwtSecret(): string {
@@ -21,7 +27,7 @@ export const slackOAuthService = {
   /**
    * Generate the Slack OAuth authorization URL with CSRF state token.
    */
-  generateAuthorizationUrl(userId: string): { url: string; state: string } {
+  generateOAuthUrl(userId: string): OAuthStartResponse {
     const config = getSlackConfig();
     const state = jwt.sign(
       { userId, timestamp: Date.now() } satisfies OAuthStatePayload,
@@ -37,7 +43,7 @@ export const slackOAuthService = {
     });
 
     return {
-      url: `https://slack.com/oauth/v2/authorize?${params.toString()}`,
+      authUrl: `https://slack.com/oauth/v2/authorize?${params.toString()}`,
       state,
     };
   },
@@ -91,7 +97,7 @@ export const slackOAuthService = {
       throw new Error(`Slack API returned HTTP ${response.status}`);
     }
 
-    const result: OAuthAccessResult = await response.json();
+    const result = (await response.json()) as OAuthAccessResult;
 
     if (!result.ok) {
       throw new Error(`Slack OAuth error: ${result.error || 'unknown_error'}`);
@@ -103,10 +109,10 @@ export const slackOAuthService = {
   /**
    * Handle the full OAuth callback: verify state, exchange code, store workspace.
    */
-  async handleCallback(
+  async handleOAuthCallback(
     code: string,
     state: string
-  ): Promise<{ teamId: string; teamName: string }> {
+  ): Promise<SlackConnection> {
     const statePayload = this.verifyState(state);
     const tokenResult = await this.exchangeCodeForToken(code);
 
@@ -130,7 +136,9 @@ export const slackOAuthService = {
       ? new Date(Date.now() + tokenResult.expires_in * 1000)
       : null;
 
-    await prisma.slackWorkspace.upsert({
+    const now = new Date();
+
+    const workspace = await prisma.slackWorkspace.upsert({
       where: {
         userId_teamId: {
           userId: statePayload.userId,
@@ -152,8 +160,8 @@ export const slackOAuthService = {
           tokenResult.incoming_webhook?.configuration_url || null,
         isActive: true,
         disconnectedAt: null,
-        lastTokenRefreshAt: new Date(),
-        updatedAt: new Date(),
+        lastTokenRefreshAt: now,
+        updatedAt: now,
       },
       create: {
         userId: statePayload.userId,
@@ -171,33 +179,33 @@ export const slackOAuthService = {
         webhookConfigurationUrl:
           tokenResult.incoming_webhook?.configuration_url || null,
         isActive: true,
-        connectedAt: new Date(),
-        lastTokenRefreshAt: new Date(),
+        connectedAt: now,
+        lastTokenRefreshAt: now,
       },
     });
 
     return {
-      teamId: tokenResult.team.id,
-      teamName: tokenResult.team.name,
+      workspaceId: workspace.id,
+      workspaceName: tokenResult.team.name,
+      isActive: true,
+      connectedAt: workspace.connectedAt,
     };
   },
 
   /**
    * Refresh an expired bot token using the refresh token.
    */
-  async refreshToken(
-    workspaceId: string
-  ): Promise<{ success: boolean; error?: string }> {
+  async refreshSlackToken(workspaceId: string): Promise<string> {
     const workspace = await prisma.slackWorkspace.findUnique({
       where: { id: workspaceId },
     });
 
     if (!workspace) {
-      return { success: false, error: 'Workspace not found' };
+      throw new Error('Workspace not found');
     }
 
     if (!workspace.refreshToken) {
-      return { success: false, error: 'No refresh token available' };
+      throw new Error('No refresh token available');
     }
 
     const config = getSlackConfig();
@@ -215,26 +223,23 @@ export const slackOAuthService = {
     });
 
     if (!response.ok) {
-      return {
-        success: false,
-        error: `Slack API returned HTTP ${response.status}`,
-      };
+      throw new Error(`Slack API returned HTTP ${response.status}`);
     }
 
-    const result: OAuthAccessResult = await response.json();
+    const result = (await response.json()) as OAuthAccessResult;
 
     if (!result.ok) {
-      if (result.error === 'invalid_refresh_token' || result.error === 'token_revoked') {
+      if (
+        result.error === 'invalid_refresh_token' ||
+        result.error === 'token_revoked'
+      ) {
         await prisma.slackWorkspace.update({
           where: { id: workspaceId },
           data: { isActive: false, disconnectedAt: new Date() },
         });
-        return {
-          success: false,
-          error: 'Token has been revoked. Please reconnect.',
-        };
+        throw new Error('Token has been revoked. Please reconnect.');
       }
-      return { success: false, error: `Slack error: ${result.error}` };
+      throw new Error(`Slack error: ${result.error}`);
     }
 
     const encryptedBotToken = result.access_token
@@ -257,7 +262,7 @@ export const slackOAuthService = {
       },
     });
 
-    return { success: true };
+    return decryptToken(encryptedBotToken);
   },
 
   /**
@@ -278,20 +283,8 @@ export const slackOAuthService = {
       workspace.refreshToken &&
       workspace.tokenExpiresAt <= new Date(Date.now() + 5 * 60 * 1000)
     ) {
-      const refreshResult = await this.refreshToken(workspaceId);
-      if (!refreshResult.success) {
-        throw new Error(
-          `Token refresh failed: ${refreshResult.error}`
-        );
-      }
-      // Re-fetch after refresh
-      const updated = await prisma.slackWorkspace.findUnique({
-        where: { id: workspaceId },
-      });
-      if (!updated) {
-        throw new Error('Workspace not found after token refresh');
-      }
-      return new WebClient(decryptToken(updated.botToken), {
+      const newToken = await this.refreshSlackToken(workspaceId);
+      return new WebClient(newToken, {
         retryConfig: { retries: 3, factor: 2, randomize: true },
       });
     }
@@ -302,58 +295,29 @@ export const slackOAuthService = {
   },
 
   /**
-   * Get all active workspaces for a user.
+   * Get all active workspaces for a user, returned as SlackConnection[].
    */
-  async getWorkspaces(userId: string) {
-    return prisma.slackWorkspace.findMany({
+  async getConnections(userId: string): Promise<SlackConnection[]> {
+    const workspaces = await prisma.slackWorkspace.findMany({
       where: { userId, isActive: true },
       select: {
         id: true,
-        teamId: true,
         teamName: true,
-        scopes: true,
         isActive: true,
         connectedAt: true,
-        lastTokenRefreshAt: true,
-      },
-    });
-  },
-
-  /**
-   * Get a single workspace connection status.
-   */
-  async getWorkspaceStatus(userId: string, workspaceId: string) {
-    const workspace = await prisma.slackWorkspace.findFirst({
-      where: { id: workspaceId, userId },
-      select: {
-        id: true,
-        teamId: true,
-        teamName: true,
-        scopes: true,
-        isActive: true,
-        connectedAt: true,
-        disconnectedAt: true,
-        lastTokenRefreshAt: true,
-        tokenExpiresAt: true,
       },
     });
 
-    if (!workspace) {
-      return null;
-    }
-
-    return {
-      ...workspace,
-      tokenStatus: workspace.tokenExpiresAt
-        ? workspace.tokenExpiresAt > new Date()
-          ? 'valid'
-          : 'expired'
-        : 'no_expiry',
-    };
+    return workspaces.map((ws) => ({
+      workspaceId: ws.id,
+      workspaceName: ws.teamName,
+      isActive: ws.isActive,
+      connectedAt: ws.connectedAt,
+    }));
   },
 
   /**
-   * Disconnect a workspace (soft delete).
+   * Disconnect a workspace (soft delete with token revocation).
    */
   async disconnectWorkspace(
     userId: string,
