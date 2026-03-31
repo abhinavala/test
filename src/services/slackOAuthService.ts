@@ -27,7 +27,7 @@ export const slackOAuthService = {
   /**
    * Generate the Slack OAuth authorization URL with CSRF state token.
    */
-  generateOAuthUrl(userId: string): OAuthStartResponse {
+  async generateOAuthUrl(userId: string): Promise<OAuthStartResponse> {
     const config = getSlackConfig();
     const state = jwt.sign(
       { userId, timestamp: Date.now() } satisfies OAuthStatePayload,

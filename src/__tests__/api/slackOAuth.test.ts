@@ -120,8 +120,8 @@ describe('slackOAuthService', () => {
   });
 
   describe('generateOAuthUrl', () => {
-    it('should return an OAuthStartResponse with authUrl and state', () => {
-      const result = slackOAuthService.generateOAuthUrl('user-123');
+    it('should return an OAuthStartResponse with authUrl and state', async () => {
+      const result = await slackOAuthService.generateOAuthUrl('user-123');
 
       expect(result).toHaveProperty('authUrl');
       expect(result).toHaveProperty('state');
@@ -133,14 +133,14 @@ describe('slackOAuthService', () => {
       expect(typeof result.state).toBe('string');
     });
 
-    it('should include the user ID in the state token', () => {
-      const { state } = slackOAuthService.generateOAuthUrl('user-456');
+    it('should include the user ID in the state token', async () => {
+      const { state } = await slackOAuthService.generateOAuthUrl('user-456');
       const decoded = jwt.verify(state, TEST_JWT_SECRET) as any;
       expect(decoded.userId).toBe('user-456');
     });
 
-    it('should create a state that expires in 10 minutes', () => {
-      const { state } = slackOAuthService.generateOAuthUrl('user-789');
+    it('should create a state that expires in 10 minutes', async () => {
+      const { state } = await slackOAuthService.generateOAuthUrl('user-789');
       const decoded = jwt.verify(state, TEST_JWT_SECRET) as any;
       const expectedExp = Math.floor(Date.now() / 1000) + 600;
       expect(decoded.exp).toBeGreaterThan(expectedExp - 5);
@@ -149,8 +149,8 @@ describe('slackOAuthService', () => {
   });
 
   describe('verifyState', () => {
-    it('should verify a valid state token', () => {
-      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+    it('should verify a valid state token', async () => {
+      const { state } = await slackOAuthService.generateOAuthUrl('user-123');
       const decoded = slackOAuthService.verifyState(state);
       expect(decoded.userId).toBe('user-123');
       expect(decoded.timestamp).toBeDefined();
@@ -305,7 +305,7 @@ describe('slackOAuthService', () => {
         updatedAt: now,
       });
 
-      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+      const { state } = await slackOAuthService.generateOAuthUrl('user-123');
       const connection = await slackOAuthService.handleOAuthCallback(
         'valid-code',
         state
@@ -331,7 +331,7 @@ describe('slackOAuthService', () => {
         })
       );
 
-      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+      const { state } = await slackOAuthService.generateOAuthUrl('user-123');
 
       await expect(
         slackOAuthService.handleOAuthCallback('code', state)
@@ -352,7 +352,7 @@ describe('slackOAuthService', () => {
         })
       );
 
-      const { state } = slackOAuthService.generateOAuthUrl('user-123');
+      const { state } = await slackOAuthService.generateOAuthUrl('user-123');
 
       await expect(
         slackOAuthService.handleOAuthCallback('code', state)
@@ -522,14 +522,14 @@ describe('OAuth API Endpoints', () => {
   });
 
   describe('POST /api/slack/oauth/start', () => {
-    it('should return authUrl and state for authenticated user', () => {
-      const result = slackOAuthService.generateOAuthUrl('user-123');
+    it('should return authUrl and state for authenticated user', async () => {
+      const result = await slackOAuthService.generateOAuthUrl('user-123');
       expect(result.authUrl).toContain('https://slack.com/oauth/v2/authorize');
       expect(result.state).toBeDefined();
     });
 
-    it('should include all required OAuth parameters in the URL', () => {
-      const result = slackOAuthService.generateOAuthUrl('user-123');
+    it('should include all required OAuth parameters in the URL', async () => {
+      const result = await slackOAuthService.generateOAuthUrl('user-123');
       const url = new URL(result.authUrl);
       expect(url.searchParams.get('client_id')).toBe('test-client-id');
       expect(url.searchParams.get('scope')).toBeTruthy();
@@ -724,9 +724,9 @@ describe('OAuth Flow Integration', () => {
     slackOAuthService = mod.slackOAuthService;
   });
 
-  it('should complete the full authorization URL generation flow', () => {
+  it('should complete the full authorization URL generation flow', async () => {
     const userId = 'user-integration-test';
-    const { authUrl, state } = slackOAuthService.generateOAuthUrl(userId);
+    const { authUrl, state } = await slackOAuthService.generateOAuthUrl(userId);
 
     // URL should be valid
     const parsedUrl = new URL(authUrl);
@@ -741,11 +741,11 @@ describe('OAuth Flow Integration', () => {
     expect(parsedUrl.searchParams.get('state')).toBe(state);
   });
 
-  it('should handle concurrent OAuth attempts for the same user', () => {
+  it('should handle concurrent OAuth attempts for the same user', async () => {
     const userId = 'user-concurrent';
 
-    const attempt1 = slackOAuthService.generateOAuthUrl(userId);
-    const attempt2 = slackOAuthService.generateOAuthUrl(userId);
+    const attempt1 = await slackOAuthService.generateOAuthUrl(userId);
+    const attempt2 = await slackOAuthService.generateOAuthUrl(userId);
 
     const decoded1 = slackOAuthService.verifyState(attempt1.state);
     const decoded2 = slackOAuthService.verifyState(attempt2.state);

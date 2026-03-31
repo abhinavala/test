@@ -21,7 +21,7 @@ router.post(
         return;
       }
 
-      const result = slackOAuthService.generateOAuthUrl(userId);
+      const result = await slackOAuthService.generateOAuthUrl(userId);
       res.json({ authUrl: result.authUrl, state: result.state });
     } catch (error) {
       next(error);
