@@ -1,0 +1,26 @@
+{
+  "name": "aria-meeting-intelligence",
+  "version": "1.0.0",
+  "description": "AI Meeting Intelligence - Calendar Integration Service",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "googleapis": "^140.0.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "@azure/msal-node": "^2.16.1",
+    "moment-timezone": "^0.5.45",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "ts-node": "^10.9.2"
+  }
+}
