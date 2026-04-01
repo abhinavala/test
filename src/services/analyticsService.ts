@@ -290,4 +290,22 @@ export const analyticsService = {
       cacheHit: false,
     };
   },
+
+  // -------------------------------------------------------------------------
+  // Named aliases required by integration contracts
+  // -------------------------------------------------------------------------
+
+  /** GET /api/analytics/health-scores — alias for getHealthScoreTrends */
+  getHealthScoreAnalytics(
+    params: AnalyticsQueryParams,
+  ) {
+    return analyticsService.getHealthScoreTrends(params);
+  },
+
+  /** GET /api/analytics/action-items — alias for getCompletionRates */
+  getActionItemAnalytics(
+    params: AnalyticsQueryParams,
+  ) {
+    return analyticsService.getCompletionRates(params);
+  },
 };

@@ -80,10 +80,23 @@ export interface AnalyticsApiError {
 }
 
 // ---------------------------------------------------------------------------
+// Named aliases expected by integration contracts
+// ---------------------------------------------------------------------------
+
+/** Alias for HealthScoreResponse — used by GET /api/analytics/health-scores */
+export type HealthScoreAnalytics = HealthScoreResponse;
+
+/** Alias for CompletionRateResponse — used by GET /api/analytics/action-items */
+export type ActionItemAnalytics = CompletionRateResponse;
+
+/** Alias for EngagementResponse — used by GET /api/analytics/engagement */
+export type EngagementAnalytics = EngagementResponse;
+
+// ---------------------------------------------------------------------------
 // Union of all response types (useful for generic hooks/utilities)
 // ---------------------------------------------------------------------------
 
 export type AnalyticsResponse =
-  | HealthScoreResponse
-  | CompletionRateResponse
-  | EngagementResponse;
+  | HealthScoreAnalytics
+  | ActionItemAnalytics
+  | EngagementAnalytics;

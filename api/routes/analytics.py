@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
+router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 # ---------------------------------------------------------------------------
 # Dependency stubs — replace with real implementations in your app factory
@@ -487,3 +487,32 @@ async def get_participant_engagement(
 
     _try_cache_set(redis_client, cache_key, response.dict())
     return response
+
+
+# ---------------------------------------------------------------------------
+# Alias routes required by integration contracts
+# ---------------------------------------------------------------------------
+
+@router.get("/action-items", response_model=CompletionRateResponse)
+async def get_action_items(
+    start_date: date = Query(..., description="Start of the date range (inclusive)"),
+    end_date: date = Query(..., description="End of the date range (inclusive)"),
+    period: str = Query("daily", description="Aggregation period: daily, weekly, monthly"),
+    meeting_ids: Optional[List[int]] = Query(None, description="Filter by meeting IDs"),
+    session: AsyncSession = Depends(get_db),
+    redis_client: redis.Redis = Depends(get_redis),
+) -> CompletionRateResponse:
+    """
+    Alias for /completion-rates.
+
+    Returns action item completion rates aggregated over the requested period.
+    Registered as GET /api/analytics/action-items per integration contract.
+    """
+    return await get_action_item_completion_rates(
+        start_date=start_date,
+        end_date=end_date,
+        period=period,
+        meeting_ids=meeting_ids,
+        session=session,
+        redis_client=redis_client,
+    )
