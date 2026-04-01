@@ -11,6 +11,9 @@ import {
   EmbeddingService,
   OrchestratorConfig,
   ProcessingResult,
+  TranscriptionPipeline,
+  ProcessingMetrics,
+  PipelineStatus,
 } from '../../types/pipeline';
 
 // --- Helpers ---
@@ -598,6 +601,121 @@ describe('TranscriptionOrchestrator', () => {
       expect(merged.segments[0].speakerId).toBe('unknown');
       expect(merged.segments[0].text).toBe('Hello world');
       expect(merged.speakers).toEqual(['unknown']);
+    });
+  });
+
+  describe('getProcessingStatus', () => {
+    it('should return stopped status when not started', () => {
+      const status = orchestrator.getProcessingStatus();
+      expect(status.status).toBe('stopped');
+      expect(status.activeSessions).toHaveLength(0);
+      expect(status.metrics.activeSessions).toBe(0);
+    });
+
+    it('should return idle status when started with no active sessions', () => {
+      orchestrator.start();
+      const status = orchestrator.getProcessingStatus();
+      expect(status.status).toBe('idle');
+    });
+
+    it('should return processing status with active sessions', () => {
+      orchestrator.start();
+      orchestrator.createSession('session-1');
+      const status = orchestrator.getProcessingStatus();
+      expect(status.status).toBe('processing');
+      expect(status.activeSessions).toContain('session-1');
+      expect(status.metrics.activeSessions).toBe(1);
+    });
+
+    it('should aggregate metrics across sessions', async () => {
+      orchestrator.start();
+      orchestrator.createSession('session-1');
+      orchestrator.createSession('session-2');
+
+      const chunk1 = createAudioChunk({ sessionId: 'session-1' });
+      const chunk2 = createAudioChunk({ sessionId: 'session-2' });
+      await orchestrator.processAudioChunk(chunk1);
+      await orchestrator.processAudioChunk(chunk2);
+
+      const status = orchestrator.getProcessingStatus();
+      expect(status.metrics.totalChunksReceived).toBe(2);
+    });
+
+    it('should include queue depths', () => {
+      orchestrator.start();
+      const status = orchestrator.getProcessingStatus();
+      expect(status.queues.transcription).toBeDefined();
+      expect(status.queues.diarization).toBeDefined();
+      expect(status.queues.embedding).toBeDefined();
+      expect(typeof status.queues.transcription.queued).toBe('number');
+    });
+
+    it('should include config', () => {
+      const status = orchestrator.getProcessingStatus();
+      expect(status.config).toBeDefined();
+      expect(status.config.enableDiarization).toBe(true);
+    });
+  });
+
+  describe('handleSessionEnd', () => {
+    it('should end an active session and return metrics', async () => {
+      orchestrator.createSession('session-1');
+      const metrics = await orchestrator.handleSessionEnd('session-1');
+      expect(metrics).toBeDefined();
+      expect(metrics.chunksReceived).toBe(0);
+
+      const session = orchestrator.getSession('session-1');
+      expect(session?.status).toBe('completed');
+    });
+
+    it('should throw for non-existent session', async () => {
+      await expect(orchestrator.handleSessionEnd('nonexistent')).rejects.toThrow('not found');
+    });
+
+    it('should emit session.completed event', async () => {
+      const handler = vi.fn();
+      orchestrator.on('session.completed', handler);
+      orchestrator.createSession('session-1');
+      await orchestrator.handleSessionEnd('session-1');
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ sessionId: 'session-1' }));
+    });
+
+    it('should send final metrics status update', async () => {
+      orchestrator.createSession('session-1');
+      const statusHandler = vi.fn();
+      orchestrator.onStatusUpdate('session-1', statusHandler);
+      await orchestrator.handleSessionEnd('session-1');
+
+      const metricsCall = statusHandler.mock.calls.find(
+        (call: unknown[]) => (call[0] as { type: string }).type === 'metrics'
+      );
+      expect(metricsCall).toBeDefined();
+    });
+
+    it('should return accurate metrics after processing', async () => {
+      orchestrator.start();
+      orchestrator.createSession('session-1');
+
+      const chunk = createAudioChunk({ sessionId: 'session-1' });
+      await orchestrator.processAudioChunk(chunk);
+
+      await wait(500);
+
+      const metrics = await orchestrator.handleSessionEnd('session-1');
+      expect(metrics.chunksReceived).toBe(1);
+      expect(metrics.transcriptionsCompleted).toBe(1);
+    });
+
+    it('should clean up session resources', async () => {
+      orchestrator.createSession('session-1');
+      orchestrator.onStatusUpdate('session-1', vi.fn());
+      await orchestrator.handleSessionEnd('session-1');
+
+      // Session is still accessible but completed
+      const session = orchestrator.getSession('session-1');
+      expect(session?.status).toBe('completed');
+      // Should not appear in active sessions
+      expect(orchestrator.getActiveSessions()).not.toContain('session-1');
     });
   });
 

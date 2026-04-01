@@ -20,6 +20,9 @@ import {
   DiarizationService,
   EmbeddingService,
   StatusUpdateCallback,
+  PipelineStatus,
+  ProcessingMetrics,
+  TranscriptionPipeline,
   DEFAULT_ORCHESTRATOR_CONFIG,
 } from '../types/pipeline';
 
@@ -769,6 +772,107 @@ export class TranscriptionOrchestrator extends EventEmitter {
         }
       }
     }
+  }
+
+  // --- Public: processing status ---
+
+  getProcessingStatus(): TranscriptionPipeline {
+    const activeSessions = this.getActiveSessions();
+    const transcriptionStats = this.transcriptionQueue.getStats();
+    const diarizationStats = this.diarizationQueue.getStats();
+    const embeddingStats = this.embeddingQueue.getStats();
+
+    let totalReceived = 0;
+    let totalProcessed = 0;
+    let totalFailed = 0;
+    let totalLatency = 0;
+    let latencyCount = 0;
+
+    for (const session of this.sessions.values()) {
+      totalReceived += session.metrics.chunksReceived;
+      totalProcessed += session.metrics.chunksProcessed;
+      totalFailed += session.metrics.chunksFailed;
+      if (session.metrics.averageProcessingTimeMs > 0) {
+        totalLatency += session.metrics.averageProcessingTimeMs;
+        latencyCount++;
+      }
+    }
+
+    const status: PipelineStatus = !this.started
+      ? 'stopped'
+      : activeSessions.length > 0
+        ? 'processing'
+        : 'idle';
+
+    const now = Date.now();
+    const earliestSession = Array.from(this.sessions.values())
+      .reduce((earliest, s) => Math.min(earliest, s.createdAt), now);
+
+    return {
+      status,
+      activeSessions,
+      metrics: {
+        activeSessions: activeSessions.length,
+        totalChunksReceived: totalReceived,
+        totalChunksProcessed: totalProcessed,
+        totalChunksFailed: totalFailed,
+        averageLatencyMs: latencyCount > 0 ? totalLatency / latencyCount : 0,
+        queueDepths: {
+          transcription: transcriptionStats.queued,
+          diarization: diarizationStats.queued,
+          embedding: embeddingStats.queued,
+        },
+        uptime: this.sessions.size > 0 ? now - earliestSession : 0,
+      },
+      config: this.config,
+      queues: {
+        transcription: {
+          queued: transcriptionStats.queued,
+          processing: transcriptionStats.processing,
+          backpressure: transcriptionStats.backpressure,
+        },
+        diarization: {
+          queued: diarizationStats.queued,
+          processing: diarizationStats.processing,
+          backpressure: diarizationStats.backpressure,
+        },
+        embedding: {
+          queued: embeddingStats.queued,
+          processing: embeddingStats.processing,
+          backpressure: embeddingStats.backpressure,
+        },
+      },
+    };
+  }
+
+  // --- Public: session end ---
+
+  async handleSessionEnd(sessionId: string): Promise<SessionMetrics> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session ${sessionId} not found`);
+    }
+
+    if (session.status === 'active') {
+      session.status = 'completed';
+      session.updatedAt = Date.now();
+    }
+
+    const metrics = { ...session.metrics };
+
+    this.sendStatusUpdate(sessionId, 'metrics', {
+      finalMetrics: this.serializeMetrics(metrics),
+    });
+
+    this.emitPipelineEvent('session.completed', sessionId, {
+      metrics: this.serializeMetrics(metrics),
+    });
+
+    this.cleanupSession(sessionId);
+
+    logger.info('Session ended', { sessionId, metrics: this.serializeMetrics(metrics) });
+
+    return metrics;
   }
 
   // --- Public: queue stats ---

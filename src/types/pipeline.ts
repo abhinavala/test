@@ -182,6 +182,34 @@ export interface StatusUpdateCallback {
   (update: StatusUpdate): void;
 }
 
+export type PipelineStatus = 'idle' | 'processing' | 'paused' | 'error' | 'stopped';
+
+export interface ProcessingMetrics {
+  activeSessions: number;
+  totalChunksReceived: number;
+  totalChunksProcessed: number;
+  totalChunksFailed: number;
+  averageLatencyMs: number;
+  queueDepths: {
+    transcription: number;
+    diarization: number;
+    embedding: number;
+  };
+  uptime: number;
+}
+
+export interface TranscriptionPipeline {
+  status: PipelineStatus;
+  activeSessions: string[];
+  metrics: ProcessingMetrics;
+  config: OrchestratorConfig;
+  queues: {
+    transcription: { queued: number; processing: number; backpressure: BackpressureLevel };
+    diarization: { queued: number; processing: number; backpressure: BackpressureLevel };
+    embedding: { queued: number; processing: number; backpressure: BackpressureLevel };
+  };
+}
+
 export const DEFAULT_QUEUE_CONFIG: QueueConfig = {
   maxSize: 100,
   warningThreshold: 80,
