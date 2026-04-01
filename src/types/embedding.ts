@@ -71,3 +71,32 @@ export interface SimilarContentResult {
   sourceSegment: TranscriptSegment;
   similarSegments: SearchResult[];
 }
+
+/** A stored vector embedding with its associated metadata */
+export interface VectorEmbedding {
+  id: string;
+  segmentId: string;
+  embedding: number[];
+  modelName: string;
+  dimensions: number;
+  createdAt?: Date;
+}
+
+/** Result of a semantic search query with similarity scoring */
+export interface SemanticSearchResult {
+  segment: TranscriptSegment;
+  similarity: number;
+  rank: number;
+}
+
+/** Configuration for the embedding model and generation */
+export interface EmbeddingConfig {
+  /** Model name for @xenova/transformers. Default: 'Xenova/all-MiniLM-L6-v2' */
+  modelName: string;
+  /** Number of dimensions in the embedding vector */
+  dimensions: number;
+  /** Whether to use quantized model. Default: true */
+  quantized: boolean;
+  /** Local path for model files */
+  modelPath?: string;
+}

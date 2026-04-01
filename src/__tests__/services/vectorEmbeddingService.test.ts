@@ -13,8 +13,11 @@ import {
   type SemanticSearchOptions,
   type BatchEmbedResult,
   type CreateTranscriptSegmentInput,
+  type VectorEmbedding,
+  type SemanticSearchResult,
+  type EmbeddingConfig,
 } from '../../types/embedding.js';
-import { VectorEmbeddingService } from '../../services/vectorEmbeddingService.js';
+import { VectorEmbeddingService, generateEmbedding, batchGenerateEmbeddings } from '../../services/vectorEmbeddingService.js';
 
 // --- Utility function tests ---
 
@@ -128,6 +131,46 @@ describe('embeddingUtils', () => {
 describe('embedding types', () => {
   it('should have EMBEDDING_DIMENSION set to 384', () => {
     expect(EMBEDDING_DIMENSION).toBe(384);
+  });
+
+  it('should define VectorEmbedding interface correctly', () => {
+    const ve: VectorEmbedding = {
+      id: 'emb-1',
+      segmentId: 'seg-1',
+      embedding: [0.1, 0.2],
+      modelName: 'Xenova/all-MiniLM-L6-v2',
+      dimensions: 384,
+    };
+    expect(ve.id).toBe('emb-1');
+    expect(ve.segmentId).toBe('seg-1');
+    expect(ve.dimensions).toBe(384);
+  });
+
+  it('should define SemanticSearchResult interface correctly', () => {
+    const ssr: SemanticSearchResult = {
+      segment: {
+        id: 'seg-1',
+        meetingId: 'meeting-1',
+        segmentText: 'test',
+        startTime: '00:00:00',
+        endTime: '00:00:10',
+      },
+      similarity: 0.95,
+      rank: 1,
+    };
+    expect(ssr.similarity).toBe(0.95);
+    expect(ssr.rank).toBe(1);
+  });
+
+  it('should define EmbeddingConfig interface correctly', () => {
+    const config: EmbeddingConfig = {
+      modelName: 'Xenova/all-MiniLM-L6-v2',
+      dimensions: 384,
+      quantized: true,
+      modelPath: './models/',
+    };
+    expect(config.modelName).toBe('Xenova/all-MiniLM-L6-v2');
+    expect(config.dimensions).toBe(384);
   });
 });
 
@@ -515,5 +558,15 @@ describe('VectorEmbeddingService', () => {
       expect(result.processedSegments).toBe(2);
       expect(result.failedSegments).toBe(0);
     });
+  });
+});
+
+describe('standalone embedding functions', () => {
+  it('should export generateEmbedding function', () => {
+    expect(typeof generateEmbedding).toBe('function');
+  });
+
+  it('should export batchGenerateEmbeddings function', () => {
+    expect(typeof batchGenerateEmbeddings).toBe('function');
   });
 });

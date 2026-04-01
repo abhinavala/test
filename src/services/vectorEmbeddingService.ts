@@ -11,6 +11,9 @@ import {
   type CreateTranscriptSegmentInput,
   type SimilarContentResult,
   type EmbeddingServiceConfig,
+  type VectorEmbedding,
+  type SemanticSearchResult,
+  type EmbeddingConfig,
 } from '../types/embedding.js';
 import { EmbeddingPipeline, toPgVector, chunk, validateEmbedding } from '../utils/embeddingUtils.js';
 
@@ -387,6 +390,28 @@ export class VectorEmbeddingService {
       createdAt: row.created_at,
     };
   }
+}
+
+/**
+ * Generate a single embedding vector for the given text.
+ */
+export async function generateEmbedding(
+  text: string,
+  config?: EmbeddingServiceConfig
+): Promise<number[]> {
+  const embedder = new EmbeddingPipeline(config);
+  return embedder.embedSingle(text);
+}
+
+/**
+ * Generate embeddings for multiple texts in batch.
+ */
+export async function batchGenerateEmbeddings(
+  texts: string[],
+  config?: EmbeddingServiceConfig
+): Promise<number[][]> {
+  const embedder = new EmbeddingPipeline(config);
+  return embedder.embed(texts);
 }
 
 export const vectorEmbeddingService = new VectorEmbeddingService();
