@@ -149,3 +149,6 @@ export interface FindParticipantsOptions {
   department?: string;
   roleType?: RoleType;
 }
+
+// Alias for communication preferences (plural form for API consistency)
+export type CommunicationPreferences = CommunicationPreference;

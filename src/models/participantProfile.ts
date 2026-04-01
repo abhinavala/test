@@ -182,6 +182,23 @@ export class ParticipantRepository {
     };
   }
 
+  // Convenience methods matching required function signatures
+
+  async createParticipantProfile(input: CreateParticipantInput): Promise<Participant> {
+    return this.create(input);
+  }
+
+  async getParticipantProfile(id: string): Promise<ParticipantProfile | null> {
+    return this.findWithProfile(id);
+  }
+
+  async updateCommunicationPreferences(
+    participantId: string,
+    input: UpdatePreferencesInput,
+  ): Promise<CommunicationPreference> {
+    return this.upsertPreferences(participantId, input);
+  }
+
   // Role management
 
   async addRole(input: CreateRoleInput): Promise<ParticipantRole> {
