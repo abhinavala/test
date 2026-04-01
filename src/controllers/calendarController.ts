@@ -2,8 +2,19 @@ import { calendarIntegrationService } from '../services/calendarIntegrationServi
 import {
   CalendarCredentials,
   CalendarPollingConfig,
-  Meeting,
+  CalendarMeeting,
 } from '../types/calendar';
+
+/**
+ * Route manifest — consumed by the HTTP adapter layer.
+ *
+ * GET /api/calendar/upcoming -> CalendarMeeting[]
+ * POST /api/calendar/refresh -> CalendarCredentials
+ */
+export const CALENDAR_ROUTES = {
+  GET_UPCOMING: 'GET /api/calendar/upcoming',
+  POST_REFRESH: 'POST /api/calendar/refresh',
+} as const;
 
 export interface GetUpcomingMeetingsRequest {
   credentials: CalendarCredentials;
@@ -11,7 +22,7 @@ export interface GetUpcomingMeetingsRequest {
 }
 
 export interface GetUpcomingMeetingsResponse {
-  meetings: Meeting[];
+  meetings: CalendarMeeting[];
   fetchedAt: string;
 }
 

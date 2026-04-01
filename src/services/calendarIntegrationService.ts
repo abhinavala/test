@@ -468,6 +468,12 @@ export const calendarIntegrationService = {
 
   matchAttendees,
 
+  /**
+   * Alias for matchAttendees — matches raw attendees to internal user records.
+   * Returns results with internalUserId populated for matched users.
+   */
+  matchAttendeesToUsers: matchAttendees,
+
   startPolling(
     credentialsProvider: () => Promise<CalendarCredentials[]>,
     onMeetingsFound: (meetings: Meeting[]) => Promise<void>,

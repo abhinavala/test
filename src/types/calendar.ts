@@ -86,3 +86,7 @@ export interface RateLimitConfig {
   baseDelayMs: number;
   maxDelayMs: number;
 }
+
+// Canonical aliases used by route contracts
+export type CalendarMeeting = Meeting;
+export type CalendarAttendee = MeetingAttendee;
