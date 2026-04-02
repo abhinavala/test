@@ -33,3 +33,12 @@ export interface ExportRequest {
  * Maximum allowed content size in bytes (16MB).
  */
 export const MAX_CONTENT_SIZE = 16 * 1024 * 1024;
+
+// Re-export content model types for downstream consumers
+export type {
+  MeetingMetadata,
+  ActionItem,
+  TranscriptSegment,
+} from "./exportContent.js";
+
+export type { MeetingData } from "../utils/exportUtils.js";
