@@ -199,6 +199,18 @@ export function extractSpeakers(transcript: TranscriptSegment[]): string[] {
 }
 
 /**
+ * Sanitize content by removing or escaping potentially dangerous characters.
+ * Strips null bytes, trims whitespace, and normalizes line endings.
+ */
+export function sanitizeContent(content: string): string {
+  return content
+    .replace(/\0/g, "")        // Remove null bytes
+    .replace(/\r\n/g, "\n")    // Normalize CRLF to LF
+    .replace(/\r/g, "\n")      // Normalize remaining CR to LF
+    .trim();
+}
+
+/**
  * Build ExportMetadata for a given session and format.
  */
 export function buildExportMetadata(

@@ -10,6 +10,7 @@ import {
   generateMeetingDataHash,
   extractSpeakers,
   buildExportMetadata,
+  sanitizeContent,
 } from "../../utils/exportUtils.js";
 
 /** Concrete test formatter to exercise the abstract base class. */
@@ -240,6 +241,32 @@ describe("extractSpeakers", () => {
       { speakerName: "Alice", timestamp: "t3", text: "c" },
     ]);
     expect(speakers).toEqual(["Alice", "Bob"]);
+  });
+});
+
+describe("sanitizeContent", () => {
+  it("removes null bytes from content", () => {
+    expect(sanitizeContent("he\0llo")).toBe("hello");
+  });
+
+  it("normalizes CRLF to LF", () => {
+    expect(sanitizeContent("line1\r\nline2")).toBe("line1\nline2");
+  });
+
+  it("normalizes CR to LF", () => {
+    expect(sanitizeContent("line1\rline2")).toBe("line1\nline2");
+  });
+
+  it("trims leading and trailing whitespace", () => {
+    expect(sanitizeContent("  hello  ")).toBe("hello");
+  });
+
+  it("handles empty string", () => {
+    expect(sanitizeContent("")).toBe("");
+  });
+
+  it("handles already-clean content", () => {
+    expect(sanitizeContent("clean content")).toBe("clean content");
   });
 });
 

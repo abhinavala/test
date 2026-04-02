@@ -23,6 +23,17 @@ import {
 } from "../utils/exportUtils.js";
 import type { MeetingData, RawMeetingData } from "../utils/exportUtils.js";
 
+// Re-export types for downstream consumers
+export type { MeetingData, RawMeetingData } from "../utils/exportUtils.js";
+export type {
+  ExportContent,
+  ExportFormat,
+  ExportMetadata,
+  MeetingMetadata,
+  ActionItem,
+  TranscriptSegment,
+} from "../types/exportContent.js";
+
 /** Result returned by the format method. */
 export interface FormatResult {
   /** The formatted content string. */
