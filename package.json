@@ -1,27 +1,18 @@
 {
-  "name": "cmngzad1s003apk6fzul64279",
+  "name": "cmni06te200028dx4js9gfj6k",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "vitest run",
-    "db:migrate": "prisma migrate dev",
-    "db:generate": "prisma generate"
+    "build": "tsc --noEmit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "devDependencies": {
-    "@prisma/client": "^7.6.0",
-    "@types/better-sqlite3": "^7.6.13",
-    "dotenv": "^17.4.0",
-    "prisma": "^7.6.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"
-  },
-  "dependencies": {
-    "@prisma/adapter-better-sqlite3": "^7.6.0",
-    "better-sqlite3": "^12.8.0"
   }
 }
