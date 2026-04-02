@@ -65,6 +65,24 @@ export interface TranscriptSegment {
 }
 
 /**
+ * Metadata about the export operation itself (as distinct from the meeting).
+ *
+ * Tracks the session, format, generation timestamp, and version so the
+ * caching layer can deduplicate by sessionId+format and downstream
+ * consumers can detect schema changes.
+ */
+export interface ExportMetadata {
+  /** Unique identifier for this export session. */
+  sessionId: string;
+  /** The format this export was rendered in. */
+  format: ExportFormat;
+  /** ISO-8601 timestamp for when this export was generated. */
+  generatedAt: string;
+  /** Schema version for forward-compatible deserialization. */
+  version: string;
+}
+
+/**
  * Complete export content structure representing all data needed
  * to render a meeting export in any supported format.
  *

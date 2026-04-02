@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type {
   ExportContent,
   ExportFormat,
+  ExportMetadata,
   MeetingMetadata,
   ActionItem,
   ActionItemStatus,
@@ -224,6 +225,33 @@ describe('ExportContent types', () => {
       expect(metadata.duration).toBe(90);
       expect(metadata.participants).toHaveLength(4);
       expect(metadata.organizer).toBe('Alice');
+    });
+  });
+
+  describe('ExportMetadata', () => {
+    it('should accept metadata with all required fields', () => {
+      const meta: ExportMetadata = {
+        sessionId: 'session-001',
+        format: 'markdown',
+        generatedAt: '2026-04-01T11:00:00Z',
+        version: '1.0.0',
+      };
+
+      expect(meta.sessionId).toBe('session-001');
+      expect(meta.format).toBe('markdown');
+      expect(meta.generatedAt).toBe('2026-04-01T11:00:00Z');
+      expect(meta.version).toBe('1.0.0');
+    });
+
+    it('should support plaintext format', () => {
+      const meta: ExportMetadata = {
+        sessionId: 'session-002',
+        format: 'plaintext',
+        generatedAt: '2026-04-02T09:00:00Z',
+        version: '1.0.0',
+      };
+
+      expect(meta.format).toBe('plaintext');
     });
   });
 
