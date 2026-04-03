@@ -1,4 +1,9 @@
-import { ExportFormat, type ExportRecord } from "../types/export.js";
+import {
+  ExportFormat,
+  ExportServiceError,
+  type ExportRecord,
+  type ExportServiceErrorCode,
+} from "../types/export.js";
 import type { ExportFormat as FormatterFormat } from "../types/exportContent.js";
 import type { RawMeetingData } from "../utils/exportUtils.js";
 import { MarkdownFormatter } from "../formatters/markdownFormatter.js";
@@ -10,34 +15,8 @@ import {
   getExportById,
 } from "../models/exportHistory.js";
 
-/**
- * Error codes for ExportService failures.
- */
-export type ExportServiceErrorCode =
-  | "INVALID_SESSION"
-  | "UNSUPPORTED_FORMAT"
-  | "FORMATTER_ERROR"
-  | "DATABASE_ERROR"
-  | "VALIDATION_ERROR";
-
-/**
- * Structured error thrown by the ExportService.
- */
-export class ExportServiceError extends Error {
-  readonly code: ExportServiceErrorCode;
-  readonly context: Record<string, unknown>;
-
-  constructor(
-    message: string,
-    code: ExportServiceErrorCode,
-    context: Record<string, unknown> = {}
-  ) {
-    super(message);
-    this.name = "ExportServiceError";
-    this.code = code;
-    this.context = context;
-  }
-}
+// Re-export error types for consumers importing from the service
+export { ExportServiceError, type ExportServiceErrorCode } from "../types/export.js";
 
 /**
  * Supported formatter formats and their mapping to database ExportFormat.
