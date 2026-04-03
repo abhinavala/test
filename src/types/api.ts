@@ -39,9 +39,19 @@ export type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
 export type GenerateExportResponse = ApiResponse<ExportRecord>;
 
 /**
+ * Typed response data for a single export.
+ */
+export type ExportResponse = ApiResponse<ExportRecord>;
+
+/**
  * Typed response data for export retrieval.
  */
 export type GetExportResponse = ApiResponse<ExportRecord>;
+
+/**
+ * Typed response data for export history listing.
+ */
+export type ExportHistoryResponse = ApiResponse<ExportRecord[]>;
 
 /**
  * Typed response data for export history listing.
