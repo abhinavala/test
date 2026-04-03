@@ -1,25 +1,10 @@
 import type { SpeakerStats } from "../types/speaker-stats.js";
+import type { TranscriptSegment } from "../types/transcript.js";
+import type { SpeakerAnalyticsConfig } from "../types/config.js";
 import { SpeakerAnalyticsError } from "../types/errors.js";
 
-/**
- * A single transcript segment representing one speaker's utterance.
- */
-export interface TranscriptSegment {
-  id: string;
-  sessionId: string;
-  speakerId: string;
-  startTime: number;
-  endTime: number;
-  text: string;
-}
-
-/**
- * Configuration for speaker analytics calculations.
- */
-export interface SpeakerAnalyticsConfig {
-  /** Overlap threshold in milliseconds for interruption detection. Default: 500 */
-  interruptionThresholdMs?: number;
-}
+export type { TranscriptSegment } from "../types/transcript.js";
+export type { SpeakerAnalyticsConfig } from "../types/config.js";
 
 const DEFAULT_INTERRUPTION_THRESHOLD_MS = 500;
 
@@ -97,6 +82,24 @@ function round2(value: number): number {
 }
 
 /**
+ * Calculate talk time per speaker from an array of transcript segments.
+ * Returns a map of speakerId to total talk time in milliseconds.
+ */
+export function calculateTalkTime(
+  segments: TranscriptSegment[]
+): Map<string, number> {
+  const talkTimeMap = new Map<string, number>();
+
+  for (const segment of segments) {
+    const duration = segment.endTime - segment.startTime;
+    const existing = talkTimeMap.get(segment.speakerId) ?? 0;
+    talkTimeMap.set(segment.speakerId, existing + duration);
+  }
+
+  return talkTimeMap;
+}
+
+/**
  * Calculate per-speaker statistics from an array of transcript segments.
  *
  * Returns an empty array if no segments are provided.
@@ -169,4 +172,5 @@ export async function calculateSpeakerStats(
 
 export const speakerAnalyticsService = {
   calculateSpeakerStats,
+  calculateTalkTime,
 };
