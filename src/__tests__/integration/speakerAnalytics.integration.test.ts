@@ -19,6 +19,7 @@ import {
   generateSingleSpeakerTranscript,
   generateLargeTranscript,
   assertValidSpeakerStats,
+  createMockTranscriptSegments,
 } from "../helpers/speakerAnalyticsTestHelpers.js";
 
 // --- Database setup ---
@@ -468,10 +469,13 @@ describe("speakerAnalytics.integration", () => {
     it("computes correct percentages for two equal speakers", async () => {
       const sessionId = "equal-speakers";
       // Two speakers, each speaks for exactly the same duration, no gaps between them
-      const segments: TranscriptSegment[] = [
-        makeSegment({ sessionId, speakerId: "a", startTime: 0, endTime: 10000 }),
-        makeSegment({ sessionId, speakerId: "b", startTime: 10000, endTime: 20000 }),
-      ];
+      const segments = createMockTranscriptSegments({
+        sessionId,
+        speakers: [
+          { speakerId: "a", segments: [{ startTime: 0, endTime: 10000 }] },
+          { speakerId: "b", segments: [{ startTime: 10000, endTime: 20000 }] },
+        ],
+      });
 
       await saveSpeakerStats(sessionId, await calculateSpeakerStats(segments));
 
@@ -492,10 +496,13 @@ describe("speakerAnalytics.integration", () => {
     it("computes correct stats for asymmetric speaking times", async () => {
       const sessionId = "asymmetric-speakers";
       // Speaker A: 30s, Speaker B: 10s. Meeting duration: 40s
-      const segments: TranscriptSegment[] = [
-        makeSegment({ sessionId, speakerId: "a", startTime: 0, endTime: 30000 }),
-        makeSegment({ sessionId, speakerId: "b", startTime: 30000, endTime: 40000 }),
-      ];
+      const segments = createMockTranscriptSegments({
+        sessionId,
+        speakers: [
+          { speakerId: "a", segments: [{ startTime: 0, endTime: 30000 }] },
+          { speakerId: "b", segments: [{ startTime: 30000, endTime: 40000 }] },
+        ],
+      });
 
       await saveSpeakerStats(sessionId, await calculateSpeakerStats(segments));
 

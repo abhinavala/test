@@ -147,6 +147,32 @@ export function generateLargeTranscript(options: {
 }
 
 /**
+ * Create mock transcript segments for a given session with specified speakers and timing.
+ * This is the primary factory for building test transcript data.
+ */
+export function createMockTranscriptSegments(options: {
+  sessionId: string;
+  speakers: Array<{ speakerId: string; segments: Array<{ startTime: number; endTime: number; text?: string }> }>;
+}): TranscriptSegment[] {
+  const { sessionId, speakers } = options;
+  const result: TranscriptSegment[] = [];
+
+  for (const speaker of speakers) {
+    for (const seg of speaker.segments) {
+      result.push(makeSegment({
+        sessionId,
+        speakerId: speaker.speakerId,
+        startTime: seg.startTime,
+        endTime: seg.endTime,
+        ...(seg.text ? { text: seg.text } : {}),
+      }));
+    }
+  }
+
+  return result.sort((a, b) => a.startTime - b.startTime);
+}
+
+/**
  * Verify that speaker stats contain expected properties and valid ranges.
  */
 export function assertValidSpeakerStats(stats: SpeakerStats[]): void {
