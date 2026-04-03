@@ -32,3 +32,14 @@ model ExportHistory {
   @@index([createdAt])
   @@map("export_history")
 }
+
+model SpeakerStatsRecord {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  stats     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("speaker_stats")
+}
