@@ -43,3 +43,67 @@ model SpeakerStatsRecord {
   @@index([sessionId])
   @@map("speaker_stats")
 }
+
+model MeetingSessionSummary {
+  id               String         @id @default(cuid())
+  meetingSessionId String         @unique
+  generatedAt      DateTime       @default(now())
+  generatedBy      String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @default(now())
+  keyDecisions     KeyDecision[]
+  openQuestions    OpenQuestion[]
+  nextSteps        NextStep[]
+
+  @@index([meetingSessionId])
+  @@map("meeting_session_summaries")
+}
+
+model KeyDecision {
+  id           String               @id @default(cuid())
+  summaryId    String
+  description  String
+  participants String
+  madeAt       DateTime?
+  context      String?
+  summary      MeetingSessionSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+
+  @@index([summaryId])
+  @@map("key_decisions")
+}
+
+model OpenQuestion {
+  id        String               @id @default(cuid())
+  summaryId String
+  question  String
+  ownerId   String?
+  raisedBy  String?
+  context   String?
+  summary   MeetingSessionSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+
+  @@index([summaryId])
+  @@map("open_questions")
+}
+
+enum NextStepPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+
+  @@map("next_step_priority")
+}
+
+model NextStep {
+  id           String               @id @default(cuid())
+  summaryId    String
+  description  String
+  assigneeId   String?
+  assigneeName String?
+  priority     NextStepPriority     @default(MEDIUM)
+  dueDate      DateTime?
+  summary      MeetingSessionSummary @relation(fields: [summaryId], references: [id], onDelete: Cascade)
+
+  @@index([summaryId])
+  @@map("next_steps")
+}

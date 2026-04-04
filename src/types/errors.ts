@@ -25,3 +25,30 @@ export class SessionNotFoundError extends Error {
     this.sessionId = sessionId;
   }
 }
+
+/** Error codes for summary generation failures. */
+export type SummaryGenerationErrorCode =
+  | "SESSION_NOT_FOUND"
+  | "INSUFFICIENT_DATA"
+  | "AI_SERVICE_FAILURE"
+  | "GENERATION_TIMEOUT"
+  | "INVALID_SESSION_STATE";
+
+/**
+ * Error thrown when meeting summary generation fails.
+ */
+export class SummaryGenerationError extends Error {
+  readonly code: SummaryGenerationErrorCode;
+  readonly meetingSessionId: string;
+
+  constructor(
+    message: string,
+    code: SummaryGenerationErrorCode,
+    meetingSessionId: string
+  ) {
+    super(message);
+    this.name = "SummaryGenerationError";
+    this.code = code;
+    this.meetingSessionId = meetingSessionId;
+  }
+}
