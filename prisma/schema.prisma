@@ -1,0 +1,45 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum ExportFormat {
+  PDF
+  MARKDOWN
+  HTML
+  JSON
+
+  @@map("export_format")
+}
+
+model ExportHistory {
+  id          String       @id @default(cuid())
+  sessionId   String
+  format      ExportFormat
+  content     String
+  contentHash String
+  createdAt   DateTime     @default(now())
+
+  @@unique([sessionId, format])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("export_history")
+}
+
+model SpeakerStatsRecord {
+  id        String   @id @default(cuid())
+  sessionId String   @unique
+  stats     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("speaker_stats")
+}
