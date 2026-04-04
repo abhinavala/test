@@ -6,6 +6,23 @@ import type { MeetingSession } from "../../types/meeting-config.js";
 import type { SummaryExtractionResult } from "../../types/ai-summary.js";
 
 /**
+ * Alias: Create mock transcript data for testing.
+ */
+export function createMockTranscriptData(
+  sessionId: string,
+  count = 5,
+): TranscriptSegment[] {
+  return createTranscriptSegments(sessionId, count);
+}
+
+/**
+ * Alias: Create mock action items for testing.
+ */
+export function createMockActionItems(count = 2): ActionItem[] {
+  return createActionItems(count);
+}
+
+/**
  * Create transcript segments for testing.
  * Generates realistic meeting transcript data with configurable count and content.
  */

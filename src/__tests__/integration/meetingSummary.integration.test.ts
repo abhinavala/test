@@ -4,6 +4,8 @@ import type { MeetingSessionSummary } from "../../types/meeting-summary.js";
 import {
   createTranscriptSegments,
   createActionItems,
+  createMockTranscriptData,
+  createMockActionItems,
   createExtractionResult,
   createMeetingSession,
   createShortMeetingSession,
@@ -878,6 +880,49 @@ describe("meetingSummary.integration", () => {
       });
 
       expect(result.summary).toBeDefined();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Mock data factory coverage
+  // ═══════════════════════════════════════════════════════════════════
+  describe("mock data factories", () => {
+    it("createMockTranscriptData produces valid transcript segments", () => {
+      const segments = createMockTranscriptData("factory-session", 3);
+      expect(segments).toHaveLength(3);
+      for (const seg of segments) {
+        expect(seg.sessionId).toBe("factory-session");
+        expect(seg.speakerId).toBeDefined();
+        expect(seg.text.length).toBeGreaterThan(0);
+        expect(seg.startTime).toBeLessThan(seg.endTime);
+      }
+    });
+
+    it("createMockActionItems produces valid action items", () => {
+      const items = createMockActionItems(2);
+      expect(items).toHaveLength(2);
+      for (const item of items) {
+        expect(item.id).toBeDefined();
+        expect(item.description.length).toBeGreaterThan(0);
+        expect(["open", "in-progress", "completed"]).toContain(item.status);
+      }
+    });
+
+    it("uses mock data factories in end-to-end generation", async () => {
+      const { sessionId } = await setupTestMeetingSession();
+      const transcriptSegments = createMockTranscriptData(sessionId, 5);
+      const actionItems = createMockActionItems(2);
+
+      const result = await generateSummary(sessionId, {
+        transcriptSegments,
+        actionItems,
+      });
+
+      expect(result.summary).toBeDefined();
+      expect(result.summary.meetingSessionId).toBe(sessionId);
+      const ctx = mockAIExtract.mock.calls[0]![0];
+      expect(ctx.transcriptSegments).toHaveLength(5);
+      expect(ctx.actionItems).toHaveLength(2);
     });
   });
 
