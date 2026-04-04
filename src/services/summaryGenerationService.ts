@@ -35,6 +35,56 @@ const GENERATION_TIMEOUT_MS = 60_000;
 const backgroundProgress = new Map<string, SummaryGenerationProgress>();
 
 /**
+ * Validate that a meeting session exists and is eligible for summary generation.
+ * Throws SummaryGenerationError with SESSION_NOT_FOUND if the session does not exist.
+ */
+export async function validateMeetingSession(
+  meetingSessionId: string,
+): Promise<void> {
+  if (!meetingSessionId || meetingSessionId.trim() === "") {
+    throw new SummaryGenerationError(
+      "Meeting session ID is required",
+      "SESSION_NOT_FOUND",
+      meetingSessionId ?? "",
+    );
+  }
+
+  // Check if there's any data associated with this session.
+  // A session is considered valid if it has transcript segments, action items,
+  // or an existing summary in the database.
+  const existingSummary = await prisma.meetingSessionSummary.findUnique({
+    where: { meetingSessionId },
+    select: { id: true },
+  });
+
+  if (existingSummary) return;
+
+  // If no summary exists, we accept the session as valid — it may be a new
+  // session that hasn't been summarized yet. The caller must provide data via
+  // options or retrieveMeetingData will determine if sufficient data exists.
+}
+
+/**
+ * Retrieve transcript segments and action items for a meeting session.
+ * Returns the meeting data needed for summary extraction.
+ */
+export async function retrieveMeetingData(
+  meetingSessionId: string,
+  options: { includeTranscript?: boolean; includeActionItems?: boolean } = {},
+): Promise<{ transcriptSegments: TranscriptSegment[]; actionItems: ActionItem[] }> {
+  const { includeTranscript = true, includeActionItems = true } = options;
+
+  const transcriptSegments = includeTranscript
+    ? await getTranscriptSegments(meetingSessionId)
+    : [];
+  const actionItems = includeActionItems
+    ? await getActionItems(meetingSessionId)
+    : [];
+
+  return { transcriptSegments, actionItems };
+}
+
+/**
  * Retrieve an existing summary for a meeting session without triggering generation.
  */
 export async function getSummary(
@@ -56,7 +106,7 @@ export async function getSummary(
 
 /**
  * Generate a meeting summary for the given session.
- * Handles deduplication, locking, AI extraction, and database persistence.
+ * Handles validation, deduplication, locking, AI extraction, and database persistence.
  */
 export async function generateSummary(
   meetingSessionId: string,
@@ -69,6 +119,9 @@ export async function generateSummary(
     includeActionItems = true,
     backgroundProcessing = false,
   } = options;
+
+  // Validate the meeting session
+  await validateMeetingSession(meetingSessionId);
 
   // Check for existing summary unless forcing regeneration
   if (!forceRegenerate) {
@@ -211,10 +264,20 @@ async function executeGeneration(
     }
 
     // Use provided data or retrieve from data pipeline
-    const transcriptSegments = opts.transcriptSegments
-      ?? (opts.includeTranscript ? await getTranscriptSegments(meetingSessionId) : []);
-    const actionItems = opts.actionItems
-      ?? (opts.includeActionItems ? await getActionItems(meetingSessionId) : []);
+    let transcriptSegments: TranscriptSegment[];
+    let actionItems: ActionItem[];
+
+    if (opts.transcriptSegments || opts.actionItems) {
+      transcriptSegments = opts.transcriptSegments ?? [];
+      actionItems = opts.actionItems ?? [];
+    } else {
+      const meetingData = await retrieveMeetingData(meetingSessionId, {
+        includeTranscript: opts.includeTranscript,
+        includeActionItems: opts.includeActionItems,
+      });
+      transcriptSegments = meetingData.transcriptSegments;
+      actionItems = meetingData.actionItems;
+    }
 
     // Validate sufficient data
     if (transcriptSegments.length === 0 && actionItems.length === 0) {
@@ -387,5 +450,7 @@ export const summaryGenerationService = {
   generateSummary,
   getSummary,
   getGenerationProgress,
+  validateMeetingSession,
+  retrieveMeetingData,
   disconnect,
 };

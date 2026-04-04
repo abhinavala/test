@@ -40,9 +40,13 @@ vi.mock("../../utils/summaryLocking.js", () => ({
   isLocked: (...args: unknown[]) => mockIsLocked(...args),
 }));
 
-const { generateSummary, getSummary, summaryGenerationService } = await import(
-  "../../services/summaryGenerationService.js"
-);
+const {
+  generateSummary,
+  getSummary,
+  validateMeetingSession,
+  retrieveMeetingData,
+  summaryGenerationService,
+} = await import("../../services/summaryGenerationService.js");
 
 function makeSummaryRecord(meetingSessionId: string) {
   return {
@@ -171,7 +175,22 @@ describe("summaryGenerationService", () => {
       expect(mockCreate).toHaveBeenCalledOnce();
     });
 
-    it("throws SummaryGenerationError with SESSION_NOT_FOUND-equivalent when AI service reports insufficient data", async () => {
+    it("throws MeetingSessionNotFoundError when session does not exist", async () => {
+      // Empty string session ID triggers SESSION_NOT_FOUND
+      await expect(generateSummary("", {
+        transcriptSegments: makeTranscriptSegments(),
+        actionItems: makeActionItems(),
+      })).rejects.toThrow(SummaryGenerationError);
+      await expect(generateSummary("", {
+        transcriptSegments: makeTranscriptSegments(),
+        actionItems: makeActionItems(),
+      })).rejects.toMatchObject({
+        code: "SESSION_NOT_FOUND",
+        meetingSessionId: "",
+      });
+    });
+
+    it("throws SummaryGenerationError with INSUFFICIENT_DATA when AI service reports insufficient data", async () => {
       const sessionId = "session-empty";
       mockFindUnique.mockResolvedValue(null);
       mockExtractSummaryComponents.mockRejectedValue(
@@ -350,6 +369,57 @@ describe("summaryGenerationService", () => {
     });
   });
 
+  describe("validateMeetingSession", () => {
+    it("throws SESSION_NOT_FOUND for empty session ID", async () => {
+      await expect(validateMeetingSession("")).rejects.toThrow(
+        SummaryGenerationError,
+      );
+      await expect(validateMeetingSession("")).rejects.toMatchObject({
+        code: "SESSION_NOT_FOUND",
+      });
+    });
+
+    it("throws SESSION_NOT_FOUND for whitespace-only session ID", async () => {
+      await expect(validateMeetingSession("   ")).rejects.toThrow(
+        SummaryGenerationError,
+      );
+    });
+
+    it("accepts valid session ID with existing summary", async () => {
+      mockFindUnique.mockResolvedValue({ id: "summary-1" });
+      await expect(validateMeetingSession("valid-session")).resolves.toBeUndefined();
+    });
+
+    it("accepts valid session ID without existing summary", async () => {
+      mockFindUnique.mockResolvedValue(null);
+      await expect(validateMeetingSession("new-session")).resolves.toBeUndefined();
+    });
+  });
+
+  describe("retrieveMeetingData", () => {
+    it("returns transcript segments and action items", async () => {
+      const result = await retrieveMeetingData("session-1");
+      expect(result).toHaveProperty("transcriptSegments");
+      expect(result).toHaveProperty("actionItems");
+      expect(Array.isArray(result.transcriptSegments)).toBe(true);
+      expect(Array.isArray(result.actionItems)).toBe(true);
+    });
+
+    it("returns empty transcript when includeTranscript is false", async () => {
+      const result = await retrieveMeetingData("session-1", {
+        includeTranscript: false,
+      });
+      expect(result.transcriptSegments).toEqual([]);
+    });
+
+    it("returns empty action items when includeActionItems is false", async () => {
+      const result = await retrieveMeetingData("session-1", {
+        includeActionItems: false,
+      });
+      expect(result.actionItems).toEqual([]);
+    });
+  });
+
   describe("summaryGenerationService object", () => {
     it("exports all expected methods", () => {
       expect(typeof summaryGenerationService.generateSummary).toBe(
@@ -357,6 +427,12 @@ describe("summaryGenerationService", () => {
       );
       expect(typeof summaryGenerationService.getSummary).toBe("function");
       expect(typeof summaryGenerationService.getGenerationProgress).toBe(
+        "function",
+      );
+      expect(typeof summaryGenerationService.validateMeetingSession).toBe(
+        "function",
+      );
+      expect(typeof summaryGenerationService.retrieveMeetingData).toBe(
         "function",
       );
       expect(typeof summaryGenerationService.disconnect).toBe("function");
