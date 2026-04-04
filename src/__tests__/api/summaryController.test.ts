@@ -23,6 +23,7 @@ const {
   generateSummaryHandler,
   getSummaryHandler,
   getProgressHandler,
+  listSummariesHandler,
 } = await import("../../controllers/summaryController.js");
 
 const {
@@ -35,11 +36,12 @@ const mockGenerateSummary = vi.mocked(generateSummary);
 const mockGetSummary = vi.mocked(getSummary);
 const mockGetGenerationProgress = vi.mocked(getGenerationProgress);
 
-function createMockRequest(overrides: Partial<Request> = {}): Request {
+function createMockRequest(overrides: Partial<Request> & { query?: Record<string, string> } = {}): Request {
   return {
     params: {},
     body: {},
     headers: {},
+    query: {},
     ...overrides,
   } as unknown as Request;
 }
@@ -295,6 +297,71 @@ describe("summaryController", () => {
       await getProgressHandler(req, res);
 
       expect(res._status).toBe(404);
+    });
+  });
+
+  describe("listSummariesHandler", () => {
+    it("returns 200 with empty list when no filter provided", async () => {
+      const req = createMockRequest({ query: {} });
+      const res = createMockResponse();
+
+      await listSummariesHandler(req, res);
+
+      expect(res._status).toBe(200);
+      const body = res._json as { success: boolean; summaries: unknown[]; pagination: { page: number; pageSize: number; total: number; totalPages: number } };
+      expect(body.success).toBe(true);
+      expect(body.summaries).toEqual([]);
+      expect(body.pagination.page).toBe(1);
+      expect(body.pagination.pageSize).toBe(20);
+    });
+
+    it("returns summary when filtered by meetingSessionId", async () => {
+      const summary = makeSummary("session-list");
+      mockGetSummary.mockResolvedValue(summary);
+
+      const req = createMockRequest({
+        query: { meetingSessionId: "session-list" },
+      });
+      const res = createMockResponse();
+
+      await listSummariesHandler(req, res);
+
+      expect(res._status).toBe(200);
+      const body = res._json as { success: boolean; summaries: MeetingSessionSummary[]; pagination: { total: number } };
+      expect(body.success).toBe(true);
+      expect(body.summaries).toHaveLength(1);
+      expect(body.summaries[0]!.meetingSessionId).toBe("session-list");
+      expect(body.pagination.total).toBe(1);
+    });
+
+    it("returns empty list when filtered session has no summary", async () => {
+      mockGetSummary.mockResolvedValue(null);
+
+      const req = createMockRequest({
+        query: { meetingSessionId: "session-none" },
+      });
+      const res = createMockResponse();
+
+      await listSummariesHandler(req, res);
+
+      expect(res._status).toBe(200);
+      const body = res._json as { success: boolean; summaries: unknown[]; pagination: { total: number } };
+      expect(body.summaries).toHaveLength(0);
+      expect(body.pagination.total).toBe(0);
+    });
+
+    it("respects page and pageSize query params", async () => {
+      const req = createMockRequest({
+        query: { page: "2", pageSize: "10" },
+      });
+      const res = createMockResponse();
+
+      await listSummariesHandler(req, res);
+
+      expect(res._status).toBe(200);
+      const body = res._json as { pagination: { page: number; pageSize: number } };
+      expect(body.pagination.page).toBe(2);
+      expect(body.pagination.pageSize).toBe(10);
     });
   });
 

@@ -3,6 +3,7 @@ import {
   generateSummaryHandler,
   getSummaryHandler,
   getProgressHandler,
+  listSummariesHandler,
 } from "../../controllers/summaryController.js";
 import {
   validateSessionId,
@@ -11,6 +12,12 @@ import {
 } from "../../middleware/summaryValidation.js";
 
 const router = Router();
+
+router.get(
+  "/api/summaries",
+  requireAuth,
+  listSummariesHandler,
+);
 
 router.post(
   "/sessions/:sessionId/summary",

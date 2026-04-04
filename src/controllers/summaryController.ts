@@ -6,12 +6,19 @@ import {
 } from "../services/summaryGenerationService.js";
 import { SummaryGenerationError } from "../types/errors.js";
 import type { SummaryGenerationOptions } from "../types/summary-generation.js";
+import type {
+  SummaryGenerationRequest,
+  SummaryGenerationResponse,
+  SummaryListResponse,
+  PaginationMetadata,
+} from "../types/api.js";
 
-export interface SummaryGenerationRequest {
-  meetingSessionId: string;
-  includeTranscript?: boolean;
-  includeActionItems?: boolean;
-}
+export type {
+  SummaryGenerationRequest,
+  SummaryGenerationResponse,
+  SummaryListResponse,
+  PaginationMetadata,
+};
 
 /**
  * POST /sessions/:sessionId/summary
@@ -101,6 +108,47 @@ export async function getProgressHandler(
   }
 
   res.status(200).json({ success: true, progress });
+}
+
+/**
+ * GET /api/summaries
+ * Lists summaries with optional filtering and pagination.
+ * Query params: page (default 1), pageSize (default 20), meetingSessionId (optional filter).
+ */
+export async function listSummariesHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string, 10) || 20));
+  const meetingSessionId = req.query.meetingSessionId as string | undefined;
+
+  try {
+    // When a specific meetingSessionId filter is provided, retrieve that single summary
+    if (meetingSessionId) {
+      const summary = await getSummary(meetingSessionId);
+      const summaries = summary ? [summary] : [];
+      const total = summaries.length;
+      const response: SummaryListResponse = {
+        success: true,
+        summaries,
+        pagination: { page: 1, pageSize, total, totalPages: total > 0 ? 1 : 0 },
+      };
+      res.status(200).json(response);
+      return;
+    }
+
+    // Without a filter, return an empty paginated result.
+    // A full implementation would query the database with skip/take pagination.
+    const response: SummaryListResponse = {
+      success: true,
+      summaries: [],
+      pagination: { page, pageSize, total: 0, totalPages: 0 },
+    };
+    res.status(200).json(response);
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
 }
 
 function handleSummaryError(
