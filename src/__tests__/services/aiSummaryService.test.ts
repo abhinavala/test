@@ -23,7 +23,7 @@ vi.mock("openai", () => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { __mockCreate: mockCreate } = await import("openai") as any;
 
-const { extractSummaryComponents, analyzeDecisionPoints } = await import(
+const { extractSummaryComponents, analyzeDecisionPoints, identifyOpenQuestions, extractNextSteps } = await import(
   "../../services/aiSummaryService.js"
 );
 
@@ -335,6 +335,96 @@ describe("aiSummaryService", () => {
       expect(decisions).toHaveLength(2);
       expect(decisions[0]!.participants).toContain("speaker-0");
       expect(decisions[1]!.participants).toContain("speaker-1");
+    });
+  });
+
+  describe("identifyOpenQuestions", () => {
+    it("identifies questions from transcript segments", () => {
+      const segments = [
+        {
+          id: "seg-0",
+          sessionId: "session-1",
+          speakerId: "speaker-alice",
+          startTime: 5000,
+          endTime: 10000,
+          text: "What about the deployment timeline?",
+        },
+        {
+          id: "seg-1",
+          sessionId: "session-1",
+          speakerId: "speaker-bob",
+          startTime: 10000,
+          endTime: 20000,
+          text: "I think we should proceed as planned.",
+        },
+      ];
+
+      const questions = identifyOpenQuestions(segments);
+      expect(questions.length).toBeGreaterThan(0);
+      expect(questions[0]!.question).toContain("deployment timeline");
+      expect(questions[0]!.raisedBy).toBe("speaker-alice");
+      expect(questions[0]!.timestamp).toBe(5000);
+    });
+
+    it("returns empty array when no questions are found", () => {
+      const segments = [
+        {
+          id: "seg-0",
+          sessionId: "session-1",
+          speakerId: "speaker-0",
+          startTime: 0,
+          endTime: 10000,
+          text: "The release is scheduled for Friday.",
+        },
+      ];
+
+      const questions = identifyOpenQuestions(segments);
+      expect(questions).toEqual([]);
+    });
+  });
+
+  describe("extractNextSteps", () => {
+    it("extracts action items from transcript segments", () => {
+      const segments = [
+        {
+          id: "seg-0",
+          sessionId: "session-1",
+          speakerId: "speaker-alice",
+          startTime: 15000,
+          endTime: 25000,
+          text: "I will send the updated proposal by end of day.",
+        },
+        {
+          id: "seg-1",
+          sessionId: "session-1",
+          speakerId: "speaker-bob",
+          startTime: 25000,
+          endTime: 35000,
+          text: "Sounds good, thanks.",
+        },
+      ];
+
+      const steps = extractNextSteps(segments);
+      expect(steps.length).toBeGreaterThan(0);
+      expect(steps[0]!.description).toContain("updated proposal");
+      expect(steps[0]!.assignee).toBe("speaker-alice");
+      expect(steps[0]!.timestamp).toBe(15000);
+    });
+
+    it("returns empty array when no action items found", () => {
+      const segments = [
+        {
+          id: "seg-0",
+          sessionId: "session-1",
+          speakerId: "speaker-0",
+          startTime: 0,
+          endTime: 10000,
+          text: "Hello everyone, welcome to the meeting.",
+        },
+      ];
+
+      const steps = extractNextSteps(segments);
+      expect(steps).toEqual([]);
     });
   });
 });

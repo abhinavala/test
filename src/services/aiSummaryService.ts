@@ -220,6 +220,88 @@ function calculateConfidence(
   return Math.min(1, Math.round(score * 100) / 100);
 }
 
+/** Identify open questions from transcript segments based on question patterns. */
+export function identifyOpenQuestions(
+  segments: ExtractionContext["transcriptSegments"],
+): Array<{ question: string; raisedBy: string; timestamp: number }> {
+  const questionIndicators = [
+    "?",
+    "what about",
+    "how do we",
+    "who will",
+    "when can",
+    "do we know",
+    "any thoughts on",
+    "what's the plan",
+    "is there a",
+    "should we",
+    "can we",
+    "are we",
+  ];
+
+  const questions: Array<{
+    question: string;
+    raisedBy: string;
+    timestamp: number;
+  }> = [];
+
+  for (const segment of segments) {
+    const lower = segment.text.toLowerCase();
+    const isQuestion = questionIndicators.some((q) => lower.includes(q));
+
+    if (isQuestion) {
+      questions.push({
+        question: segment.text,
+        raisedBy: segment.speakerId,
+        timestamp: segment.startTime,
+      });
+    }
+  }
+
+  return questions;
+}
+
+/** Extract next steps from transcript segments based on action-oriented language. */
+export function extractNextSteps(
+  segments: ExtractionContext["transcriptSegments"],
+): Array<{ description: string; assignee: string; timestamp: number }> {
+  const actionKeywords = [
+    "i'll take care of",
+    "i will",
+    "action item",
+    "next step",
+    "let me handle",
+    "i'll follow up",
+    "we need to",
+    "someone should",
+    "please do",
+    "make sure to",
+    "don't forget to",
+    "TODO",
+  ];
+
+  const steps: Array<{
+    description: string;
+    assignee: string;
+    timestamp: number;
+  }> = [];
+
+  for (const segment of segments) {
+    const lower = segment.text.toLowerCase();
+    const isAction = actionKeywords.some((kw) => lower.includes(kw));
+
+    if (isAction) {
+      steps.push({
+        description: segment.text,
+        assignee: segment.speakerId,
+        timestamp: segment.startTime,
+      });
+    }
+  }
+
+  return steps;
+}
+
 /** Analyze transcript segments to identify decision points with participant attribution. */
 export function analyzeDecisionPoints(
   segments: ExtractionContext["transcriptSegments"],
@@ -303,4 +385,6 @@ export async function extractSummaryComponents(
 export const aiSummaryService = {
   extractSummaryComponents,
   analyzeDecisionPoints,
+  identifyOpenQuestions,
+  extractNextSteps,
 };
