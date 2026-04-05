@@ -5,9 +5,14 @@ import {
   createEngagementScore,
   getEngagementScoresBySession,
   getEngagementScore,
+  getEngagementScoreByParticipant,
   disconnect,
 } from "../../models/participantEngagementScore";
-import { EngagementScoreError } from "../../types/engagement";
+import {
+  EngagementScoreError,
+  type EngagementMetrics,
+  type EngagementCalculationInput,
+} from "../../types/engagement";
 
 import path from "path";
 
@@ -144,6 +149,76 @@ describe("participantEngagementScore", () => {
       expect(result).not.toBeNull();
       expect(result!.score).toBe(0.85);
       expect(result!.participantId).toBe("participant-1");
+    });
+  });
+
+  describe("getEngagementScoreByParticipant", () => {
+    it("returns empty array when no scores exist for participantId", async () => {
+      const result = await getEngagementScoreByParticipant("non-existent");
+      expect(result).toEqual([]);
+    });
+
+    it("returns all scores for a participant across sessions", async () => {
+      await createEngagementScore(sampleScoreData);
+      await createEngagementScore({
+        ...sampleScoreData,
+        sessionId: "session-2",
+      });
+
+      const results = await getEngagementScoreByParticipant("participant-1");
+
+      expect(results).toHaveLength(2);
+      expect(results.map((r) => r.sessionId).sort()).toEqual([
+        "session-1",
+        "session-2",
+      ]);
+    });
+
+    it("does not return scores from other participants", async () => {
+      await createEngagementScore(sampleScoreData);
+      await createEngagementScore({
+        ...sampleScoreData,
+        participantId: "participant-2",
+        sessionId: "session-2",
+      });
+
+      const results = await getEngagementScoreByParticipant("participant-1");
+
+      expect(results).toHaveLength(1);
+      expect(results[0]!.participantId).toBe("participant-1");
+    });
+  });
+
+  describe("EngagementMetrics and EngagementCalculationInput types", () => {
+    it("EngagementMetrics can be constructed with correct shape", () => {
+      const metrics: EngagementMetrics = {
+        talkTimeRatio: 0.35,
+        questionCount: 5,
+        responseRate: 0.9,
+        sentimentScore: 0.72,
+      };
+
+      expect(metrics.talkTimeRatio).toBe(0.35);
+      expect(metrics.questionCount).toBe(5);
+      expect(metrics.responseRate).toBe(0.9);
+      expect(metrics.sentimentScore).toBe(0.72);
+    });
+
+    it("EngagementCalculationInput can be constructed with correct shape", () => {
+      const input: EngagementCalculationInput = {
+        sessionId: "session-1",
+        participantId: "participant-1",
+        metrics: {
+          talkTimeRatio: 0.35,
+          questionCount: 5,
+          responseRate: 0.9,
+          sentimentScore: 0.72,
+        },
+      };
+
+      expect(input.sessionId).toBe("session-1");
+      expect(input.participantId).toBe("participant-1");
+      expect(input.metrics.talkTimeRatio).toBe(0.35);
     });
   });
 

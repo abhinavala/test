@@ -102,6 +102,30 @@ export async function getEngagementScore(
 }
 
 /**
+ * Retrieve all engagement scores for a specific participant across all sessions.
+ * Returns an empty array if no scores exist.
+ */
+export async function getEngagementScoreByParticipant(
+  participantId: string
+): Promise<ParticipantEngagementScore[]> {
+  const records = await prisma.participantEngagementScore.findMany({
+    where: { participantId },
+  });
+
+  return records.map((record) => ({
+    id: record.id,
+    sessionId: record.sessionId,
+    participantId: record.participantId,
+    score: record.score,
+    talkTimeRatio: record.talkTimeRatio,
+    questionCount: record.questionCount,
+    responseRate: record.responseRate,
+    sentimentScore: record.sentimentScore,
+    calculatedAt: record.calculatedAt,
+  }));
+}
+
+/**
  * Disconnect the Prisma client (useful for cleanup in tests).
  */
 export async function disconnect(): Promise<void> {

@@ -14,6 +14,25 @@ export interface ParticipantEngagementScore {
 }
 
 /**
+ * Raw engagement metrics for a participant before score calculation.
+ */
+export interface EngagementMetrics {
+  talkTimeRatio: number;
+  questionCount: number;
+  responseRate: number;
+  sentimentScore: number;
+}
+
+/**
+ * Input data required to calculate engagement scores for a participant.
+ */
+export interface EngagementCalculationInput {
+  sessionId: string;
+  participantId: string;
+  metrics: EngagementMetrics;
+}
+
+/**
  * Summary of engagement scores across all participants in a session.
  */
 export interface SessionEngagementSummary {
