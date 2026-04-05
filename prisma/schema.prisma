@@ -107,3 +107,21 @@ model NextStep {
   @@index([summaryId])
   @@map("next_steps")
 }
+
+model ParticipantEngagementScore {
+  id             String   @id @default(cuid())
+  sessionId      String
+  participantId  String
+  score          Float
+  talkTimeRatio  Float
+  questionCount  Int
+  responseRate   Float
+  sentimentScore Float
+  calculatedAt   DateTime @default(now())
+
+  @@unique([sessionId, participantId])
+  @@index([sessionId])
+  @@index([participantId])
+  @@index([calculatedAt])
+  @@map("participant_engagement_scores")
+}
