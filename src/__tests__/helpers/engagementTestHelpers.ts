@@ -255,3 +255,11 @@ export async function setupTestMeetingData(sessionId: string): Promise<void> {
   setupSuccessfulEngagementCreate(sessionId);
   setupSuccessfulEngagementCleanup();
 }
+
+/**
+ * Clean up test data for a session. Deletes all engagement scores
+ * for the given session to ensure test isolation.
+ */
+export async function cleanupTestData(sessionId: string): Promise<void> {
+  await mockEngagementPrisma.deleteMany({ where: { sessionId } });
+}

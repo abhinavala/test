@@ -17,6 +17,7 @@ import {
   setupSuccessfulEngagementCreate,
   setupSuccessfulEngagementCleanup,
   setupTestMeetingData,
+  cleanupTestData,
 } from "../helpers/engagementTestHelpers.js";
 import {
   createMockRequest,
@@ -87,6 +88,47 @@ async function getEngagementScoresHandler(
     res.status(500).json({
       success: false,
       error: "Internal server error",
+    });
+  }
+}
+
+interface CalculateEngagementResponse {
+  success: boolean;
+  sessionId: string;
+  scores: ParticipantEngagementScore[];
+  message?: string;
+  error?: string;
+}
+
+async function calculateEngagementScoresHandler(
+  req: ReturnType<typeof createMockRequest>,
+  res: ReturnType<typeof createMockResponse>,
+): Promise<void> {
+  const { sessionId } = req.params;
+
+  if (!sessionId) {
+    res.status(404).json({ success: false, error: "Meeting session not found" });
+    return;
+  }
+
+  try {
+    const transcriptSegments = req.body.transcriptSegments ?? [];
+    const scores = await mockCalculateEngagement(sessionId, transcriptSegments);
+
+    for (const score of scores) {
+      await mockEngagementPrisma.create({ data: score });
+    }
+
+    res.status(200).json({
+      success: true,
+      sessionId,
+      scores,
+      message: "Engagement scores calculated successfully",
+    } satisfies CalculateEngagementResponse);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : "Internal server error",
     });
   }
 }
@@ -363,6 +405,94 @@ describe("engagementScoringSystem.integration", () => {
   });
 
   // ═══════════════════════════════════════════════════════════════════
+  // POST /sessions/:sessionId/engagement-scores/calculate endpoint
+  // ═══════════════════════════════════════════════════════════════════
+  describe("POST /sessions/:sessionId/engagement-scores/calculate", () => {
+    it("calculates and returns engagement scores for a valid session", async () => {
+      const sessionId = "calc-endpoint-session";
+      const scores = createMockEngagementScores(sessionId, 3);
+      setupSuccessfulEngagementCalculation(sessionId, scores);
+      setupSuccessfulEngagementCreate(sessionId);
+
+      const segments = createEngagementTranscriptSegments(sessionId, 3, 4);
+      const req = createMockRequest({
+        params: { sessionId },
+        body: { transcriptSegments: segments },
+      });
+      const res = createMockResponse();
+
+      await calculateEngagementScoresHandler(req, res);
+
+      assertSuccessResponse(res, 200);
+      const body = res._json as CalculateEngagementResponse;
+      expect(body.sessionId).toBe(sessionId);
+      expect(body.scores).toHaveLength(3);
+      expect(body.message).toContain("calculated successfully");
+    });
+
+    it("returns 404 when sessionId is missing", async () => {
+      const req = createMockRequest({ params: {}, body: {} });
+      const res = createMockResponse();
+
+      await calculateEngagementScoresHandler(req, res);
+
+      assertErrorResponse(res, 404, "Meeting session not found");
+    });
+
+    it("returns 500 when calculation service fails", async () => {
+      const sessionId = "calc-fail-session";
+      setupFailingEngagementCalculation(new Error("Scoring engine unavailable"));
+
+      const req = createMockRequest({
+        params: { sessionId },
+        body: { transcriptSegments: [] },
+      });
+      const res = createMockResponse();
+
+      await calculateEngagementScoresHandler(req, res);
+
+      assertErrorResponse(res, 500, "Scoring engine unavailable");
+    });
+
+    it("handles empty transcript segments and returns empty scores", async () => {
+      const sessionId = "empty-calc-session";
+      mockCalculateEngagement.mockResolvedValue([]);
+
+      const req = createMockRequest({
+        params: { sessionId },
+        body: { transcriptSegments: [] },
+      });
+      const res = createMockResponse();
+
+      await calculateEngagementScoresHandler(req, res);
+
+      assertSuccessResponse(res, 200);
+      const body = res._json as CalculateEngagementResponse;
+      expect(body.scores).toHaveLength(0);
+    });
+
+    it("persists calculated scores to database", async () => {
+      const sessionId = "persist-calc-session";
+      const scores = createMockEngagementScores(sessionId, 2);
+      setupSuccessfulEngagementCalculation(sessionId, scores);
+      setupSuccessfulEngagementCreate(sessionId);
+
+      const req = createMockRequest({
+        params: { sessionId },
+        body: { transcriptSegments: createEngagementTranscriptSegments(sessionId, 2) },
+      });
+      const res = createMockResponse();
+
+      await calculateEngagementScoresHandler(req, res);
+
+      expect(mockEngagementPrisma.create).toHaveBeenCalledTimes(2);
+      for (const score of scores) {
+        expect(mockEngagementPrisma.create).toHaveBeenCalledWith({ data: score });
+      }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
   // Meeting end event triggers engagement calculation
   // ═══════════════════════════════════════════════════════════════════
   describe("meeting end event triggers engagement calculation", () => {
@@ -527,7 +657,7 @@ describe("engagementScoringSystem.integration", () => {
       const sessionId = "cleanup-session";
       setupSuccessfulEngagementCleanup();
 
-      await mockEngagementPrisma.deleteMany({ where: { sessionId } });
+      await cleanupTestData(sessionId);
 
       expect(mockEngagementPrisma.deleteMany).toHaveBeenCalledWith({
         where: { sessionId },
