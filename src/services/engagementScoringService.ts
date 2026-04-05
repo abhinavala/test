@@ -1,4 +1,11 @@
-import type { ParticipantEngagementScore } from "../types/engagement.js";
+import type {
+  ParticipantEngagementScore,
+  ParticipantInput,
+  EngagementCalculationInput,
+  EngagementMetrics,
+} from "../types/engagement.js";
+
+export type { ParticipantInput, EngagementCalculationInput, EngagementMetrics } from "../types/engagement.js";
 
 /**
  * Error thrown when engagement scoring calculation fails.
@@ -22,37 +29,6 @@ const WEIGHTS = {
   responseRate: 0.25,
   sentimentScore: 0.2,
 } as const;
-
-/** Input data for a single participant's engagement calculation. */
-export interface ParticipantInput {
-  participantId: string;
-  /** Total talk time in milliseconds for this participant. */
-  talkTimeMs: number;
-  /** Number of questions asked by this participant. */
-  questionCount: number;
-  /** Number of questions directed at this participant. */
-  questionsReceived: number;
-  /** Number of those questions that were answered. */
-  questionsAnswered: number;
-  /** Sentiment score from -1 (negative) to 1 (positive). */
-  sentimentScore: number;
-}
-
-/** Input for calculating engagement scores for a session. */
-export interface EngagementCalculationInput {
-  sessionId: string;
-  participants: ParticipantInput[];
-  /** Total session duration in milliseconds. */
-  totalDurationMs: number;
-}
-
-/** Result of a single participant's engagement calculation. */
-export interface EngagementMetrics {
-  talkTimeRatio: number;
-  questionCount: number;
-  responseRate: number;
-  sentimentScore: number;
-}
 
 /**
  * Round a number to four decimal places.
