@@ -54,3 +54,17 @@ export interface GetEngagementScoresResponse {
   summary: EngagementScoreSummary;
   error?: string;
 }
+
+/** Request body for triggering engagement score calculation. */
+export interface CalculateEngagementRequest {
+  sessionId: string;
+}
+
+/** Response envelope for engagement score calculation. */
+export interface CalculateEngagementResponse {
+  success: boolean;
+  scores?: ParticipantEngagementScore[];
+  summary?: EngagementScoreSummary;
+  processingTime?: number;
+  error?: string;
+}

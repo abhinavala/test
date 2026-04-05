@@ -6,13 +6,19 @@ import {
 import type { ParticipantEngagementScore } from "../types/engagement.js";
 import type {
   GetEngagementScoresResponse,
+  CalculateEngagementResponse,
   EngagementScoreSummary,
 } from "../types/api.js";
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
-function isValidSessionId(sessionId: string): boolean {
-  return sessionId.length > 0 && sessionId.length <= 256 && SESSION_ID_PATTERN.test(sessionId);
+export function validateSessionId(sessionId: string): boolean {
+  return (
+    typeof sessionId === "string" &&
+    sessionId.length > 0 &&
+    sessionId.length <= 256 &&
+    SESSION_ID_PATTERN.test(sessionId)
+  );
 }
 
 function buildSummary(scores: ParticipantEngagementScore[]): EngagementScoreSummary {
@@ -28,7 +34,7 @@ function buildSummary(scores: ParticipantEngagementScore[]): EngagementScoreSumm
 export async function getEngagementScores(req: Request, res: Response): Promise<void> {
   const { sessionId } = req.params;
 
-  if (!sessionId || !isValidSessionId(sessionId)) {
+  if (!sessionId || !validateSessionId(sessionId)) {
     res.status(400).json({ success: false, error: "Invalid sessionId format" });
     return;
   }
@@ -57,6 +63,39 @@ export async function getEngagementScores(req: Request, res: Response): Promise<
       success: true,
       scores,
       summary: buildSummary(scores),
+    };
+
+    res.status(200).json(response);
+  } catch (error) {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+export async function calculateEngagementScores(req: Request, res: Response): Promise<void> {
+  const { sessionId } = req.params;
+
+  if (!sessionId || !validateSessionId(sessionId)) {
+    res.status(400).json({ success: false, error: "Invalid sessionId format" });
+    return;
+  }
+
+  try {
+    const startTime = Date.now();
+    const scores = await getEngagementScoresBySession(sessionId);
+
+    if (scores.length === 0) {
+      res.status(404).json({
+        success: false,
+        error: `Engagement scores not found for session: ${sessionId}`,
+      });
+      return;
+    }
+
+    const response: CalculateEngagementResponse = {
+      success: true,
+      scores,
+      summary: buildSummary(scores),
+      processingTime: Date.now() - startTime,
     };
 
     res.status(200).json(response);
