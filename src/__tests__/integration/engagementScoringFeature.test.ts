@@ -8,11 +8,15 @@ import {
   createEngagementScore,
   createEngagementScores,
   createEngagementTranscriptSegments,
+  createMockTranscriptSegments,
   setupTestSession,
   setupEngagementAPISuccess,
   setupNoEngagementScores,
   setupEngagementScoringFailure,
   createEngagementMeetingEndEvent,
+  simulateMeetingEnd,
+  verifyEngagementScoresStored,
+  cleanupTestData,
 } from "../helpers/engagementTestHelpers.js";
 import {
   createMockRequest,
@@ -66,31 +70,25 @@ describe("engagementScoringFeature", () => {
     it("processes meeting end event and makes scores available via API", async () => {
       const sessionId = await setupTestSession(4, ["high", "medium", "low", "silent"]);
       const event = createEngagementMeetingEndEvent(sessionId);
-      const segments = createEngagementTranscriptSegments(sessionId, 4, ["high", "medium", "low", "silent"]);
+      const segments = createMockTranscriptSegments(sessionId, 4, ["high", "medium", "low", "silent"]);
       const expectedScores = createEngagementScores(sessionId, 4, ["high", "medium", "low", "silent"]);
 
-      // Step 1: Simulate meeting end triggering engagement calculation
-      const calculatedScores = await mockEngagementService.calculateEngagementScores(
-        sessionId,
-        segments,
-      );
+      // Step 1: Simulate meeting end triggering engagement calculation and persistence
+      const calculatedScores = await simulateMeetingEnd(sessionId, segments);
 
       expect(calculatedScores).toHaveLength(4);
       expect(mockEngagementService.calculateEngagementScores).toHaveBeenCalledWith(
         sessionId,
         segments,
       );
-
-      // Step 2: Persist scores via model
-      const savedScores = await mockEngagementModel.saveEngagementScores(
+      expect(mockEngagementModel.saveEngagementScores).toHaveBeenCalledWith(
         sessionId,
         calculatedScores,
       );
-      expect(savedScores).toHaveLength(4);
 
-      // Step 3: Verify scores retrievable via API pattern (GET /sessions/:sessionId/engagement-scores)
+      // Step 2: Verify scores stored and retrievable
       setupEngagementAPISuccess(sessionId, expectedScores);
-      const retrievedScores = await mockEngagementModel.getEngagementScores(sessionId);
+      const retrievedScores = await verifyEngagementScoresStored(sessionId, 4);
       expect(retrievedScores).toHaveLength(4);
 
       // Verify API response format via mock controller handler
@@ -637,6 +635,17 @@ describe("engagementScoringFeature", () => {
       const scores = await mockEngagementModel.getEngagementScores("any-session");
       expect(scores).toBeUndefined();
     });
+
+    it("cleanupTestData removes scores for a specific session", async () => {
+      const sessionId = "cleanup-test-session";
+      mockEngagementPrisma.deleteMany.mockResolvedValue({ count: 3 });
+
+      await cleanupTestData(sessionId);
+
+      expect(mockEngagementPrisma.deleteMany).toHaveBeenCalledWith({
+        where: { sessionId },
+      });
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════
@@ -685,6 +694,41 @@ describe("engagementScoringFeature", () => {
         expect(segment.endTime).toBeGreaterThan(segment.startTime);
         expect(segment.text.length).toBeGreaterThan(0);
       }
+    });
+
+    it("createMockTranscriptSegments produces same output as createEngagementTranscriptSegments", () => {
+      const sessionId = "mock-segments-test";
+      const levels = ["high", "medium", "silent"];
+      const segments1 = createEngagementTranscriptSegments(sessionId, 3, levels);
+      const segments2 = createMockTranscriptSegments(sessionId, 3, levels);
+
+      expect(segments2).toEqual(segments1);
+    });
+
+    it("simulateMeetingEnd triggers calculation and persistence", async () => {
+      const sessionId = await setupTestSession(3, ["high", "medium", "low"]);
+      const segments = createMockTranscriptSegments(sessionId, 3, ["high", "medium", "low"]);
+
+      const scores = await simulateMeetingEnd(sessionId, segments);
+
+      expect(scores).toHaveLength(3);
+      expect(mockEngagementService.calculateEngagementScores).toHaveBeenCalledWith(sessionId, segments);
+      expect(mockEngagementModel.saveEngagementScores).toHaveBeenCalledWith(sessionId, scores);
+    });
+
+    it("verifyEngagementScoresStored throws when count mismatch", async () => {
+      const sessionId = await setupTestSession(2, ["high", "low"]);
+
+      await expect(verifyEngagementScoresStored(sessionId, 5)).rejects.toThrow(
+        "Expected 5 engagement scores",
+      );
+    });
+
+    it("verifyEngagementScoresStored returns scores when count matches", async () => {
+      const sessionId = await setupTestSession(2, ["high", "low"]);
+
+      const scores = await verifyEngagementScoresStored(sessionId, 2);
+      expect(scores).toHaveLength(2);
     });
 
     it("setupTestSession configures all necessary mocks", async () => {

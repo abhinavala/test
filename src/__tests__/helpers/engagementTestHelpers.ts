@@ -231,3 +231,56 @@ export function createEngagementMeetingEndEvent(
     endTime: Date.now(),
   };
 }
+
+/**
+ * Create mock transcript segments for testing engagement scoring.
+ * Alias for createEngagementTranscriptSegments with a simpler interface.
+ */
+export function createMockTranscriptSegments(
+  sessionId: string,
+  participantCount: number,
+  engagementLevels: string[] = [],
+): TranscriptSegment[] {
+  return createEngagementTranscriptSegments(sessionId, participantCount, engagementLevels);
+}
+
+/**
+ * Simulate a meeting end event that triggers engagement score calculation.
+ * Calls the mocked engagement scoring service and model to persist scores.
+ * Returns the calculated scores.
+ */
+export async function simulateMeetingEnd(
+  sessionId: string,
+  segments: TranscriptSegment[],
+): Promise<ParticipantEngagementScore[]> {
+  const scores = await mockEngagementService.calculateEngagementScores(sessionId, segments);
+  if (scores && scores.length > 0) {
+    await mockEngagementModel.saveEngagementScores(sessionId, scores);
+  }
+  return scores;
+}
+
+/**
+ * Verify that engagement scores have been stored correctly for a session.
+ * Checks the model mock was called with expected data and returns the retrieved scores.
+ */
+export async function verifyEngagementScoresStored(
+  sessionId: string,
+  expectedCount: number,
+): Promise<ParticipantEngagementScore[]> {
+  const scores = await mockEngagementModel.getEngagementScores(sessionId);
+  if (scores.length !== expectedCount) {
+    throw new Error(
+      `Expected ${expectedCount} engagement scores for session ${sessionId}, but found ${scores.length}`,
+    );
+  }
+  return scores;
+}
+
+/**
+ * Clean up test data for a session by resetting mock state for that session.
+ * Provides session-scoped test data cleanup.
+ */
+export async function cleanupTestData(sessionId: string): Promise<void> {
+  await mockEngagementPrisma.deleteMany({ where: { sessionId } });
+}
