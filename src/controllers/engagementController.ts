@@ -8,29 +8,15 @@ import {
 import {
   calculateSessionEngagement,
 } from "../services/engagementScoringService.js";
-import type { ParticipantEngagementScore } from "../types/engagement.js";
+import type {
+  GetEngagementScoresResponse,
+  CalculateEngagementResponse,
+} from "../types/api.js";
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 function isValidSessionId(sessionId: string): boolean {
   return sessionId.length > 0 && sessionId.length <= 256 && SESSION_ID_PATTERN.test(sessionId);
-}
-
-export interface GetEngagementScoresResponse {
-  success: boolean;
-  sessionId: string;
-  scores: ParticipantEngagementScore[];
-}
-
-export interface CalculateEngagementResponse {
-  success: boolean;
-  sessionId: string;
-  scores: ParticipantEngagementScore[];
-  summary: {
-    averageScore: number;
-    participantCount: number;
-    calculatedAt: Date;
-  };
 }
 
 export async function getEngagementScores(req: Request, res: Response): Promise<void> {
