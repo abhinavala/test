@@ -9,3 +9,10 @@ export interface ParticipantEngagementScore {
   sentimentScore: number;
   calculatedAt: Date;
 }
+
+export interface SessionEngagementSummary {
+  sessionId: string;
+  averageScore: number;
+  participantScores: ParticipantEngagementScore[];
+  calculatedAt: Date;
+}
