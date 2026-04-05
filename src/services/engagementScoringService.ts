@@ -73,7 +73,52 @@ function clamp0to100(value: number): number {
 }
 
 /**
- * Calculate the talk time ratio for a participant (0-100 scale).
+ * Calculate the talk time ratio for a participant.
+ * Returns the raw ratio of participant talk time to session duration.
+ */
+export function calculateTalkTimeRatio(
+  participantTalkTime: number,
+  sessionDuration: number
+): number {
+  if (sessionDuration <= 0) return 0;
+  return round2(participantTalkTime / sessionDuration);
+}
+
+/**
+ * Calculate the response score for a participant (0-100 scale).
+ * Based on how often the participant responds when spoken to by others.
+ */
+export function calculateResponseScore(
+  segments: TranscriptSegment[],
+  participantId: string
+): number {
+  const rate = calculateResponseRate(segments, participantId);
+  return calculateResponseRateScore(rate);
+}
+
+/**
+ * Calculate the final weighted engagement score from component scores.
+ * Each component is on a 0-100 scale. Result is clamped to 0-100.
+ */
+export function calculateFinalScore(
+  components: {
+    talkTimeScore: number;
+    questionScore: number;
+    responseRateScore: number;
+    sentimentScore: number;
+  },
+  weights: EngagementWeights = DEFAULT_WEIGHTS
+): number {
+  return round2(clamp0to100(
+    components.talkTimeScore * weights.talkTimeRatio +
+    components.questionScore * weights.questionCount +
+    components.responseRateScore * weights.responseRate +
+    components.sentimentScore * weights.sentimentScore
+  ));
+}
+
+/**
+ * Calculate the talk time score for a participant (0-100 scale).
  * A balanced talk time relative to session duration scores higher.
  * Optimal ratio depends on number of participants.
  */
@@ -364,4 +409,7 @@ export async function calculateSessionEngagement(
 export const engagementScoringService = {
   calculateEngagementScore,
   calculateSessionEngagement,
+  calculateTalkTimeRatio,
+  calculateResponseScore,
+  calculateFinalScore,
 };
