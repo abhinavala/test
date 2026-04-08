@@ -6,6 +6,7 @@ import pkg from "lodash";
 const { groupBy, orderBy, take } = pkg;
 import type {
   AggregatedActionItem,
+  ActionItemFilter,
   AggregationConfig,
   AggregationResult,
   AggregationStrategy,
@@ -257,12 +258,58 @@ async function getSessionActionItems(
   });
 }
 
+/**
+ * Aggregate action items for a list of participants.
+ * Convenience wrapper that queries and groups by participant with filtering.
+ */
+async function aggregateActionItemsForParticipants(
+  filter: ActionItemFilter,
+): Promise<AggregationResult> {
+  const lookbackDays = filter.lookbackDays ?? 30;
+  const maxItems = filter.maxItems ?? 50;
+
+  const items = await queryActionItems(lookbackDays, filter.participantIds);
+
+  // Apply additional filters
+  let filtered = items;
+
+  if (filter.priorities && filter.priorities.length > 0) {
+    filtered = filtered.filter((item) => filter.priorities!.includes(item.priority));
+  }
+
+  if (filter.overdueOnly) {
+    filtered = filtered.filter((item) => item.isOverdue);
+  }
+
+  if (filter.meetingSessionIds && filter.meetingSessionIds.length > 0) {
+    filtered = filtered.filter((item) =>
+      filter.meetingSessionIds!.includes(item.meetingSessionId),
+    );
+  }
+
+  const groups = aggregateByParticipant(filtered, maxItems);
+
+  let totalItems = 0;
+  for (const group of Object.values(groups)) {
+    totalItems += group.length;
+  }
+
+  return {
+    groups,
+    totalItems,
+    lookbackDays,
+    strategy: "by-participant",
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 async function disconnect(): Promise<void> {
   await prisma.$disconnect();
 }
 
 export const actionItemsAggregationService = {
   aggregateActionItems,
+  aggregateActionItemsForParticipants,
   getParticipantActionItems,
   getSessionActionItems,
   disconnect,
@@ -271,6 +318,7 @@ export const actionItemsAggregationService = {
 // Named exports for direct usage
 export {
   aggregateActionItems,
+  aggregateActionItemsForParticipants,
   getParticipantActionItems,
   getSessionActionItems,
   calculateRelevanceScore,

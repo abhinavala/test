@@ -1,6 +1,6 @@
 import type { Request, Response } from "express";
 import { actionItemsAggregationService } from "../services/actionItemsAggregationService.js";
-import type { AggregationStrategy } from "../types/actionItems.js";
+import type { ActionItemFilter, AggregationStrategy } from "../types/actionItems.js";
 
 const SESSION_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 const VALID_STRATEGIES: AggregationStrategy[] = ["by-participant", "by-meeting", "by-project"];
@@ -71,6 +71,38 @@ export async function getAggregatedActionItemsHandler(
       strategy: strategy as AggregationStrategy,
       participantIds,
     });
+
+    res.status(200).json({ success: true, ...result });
+  } catch {
+    res.status(500).json({ success: false, error: "Internal server error" });
+  }
+}
+
+/**
+ * POST /api/action-items/aggregate
+ * Aggregates action items for specified participants with filtering options.
+ */
+export async function aggregateActionItemsHandler(
+  req: Request,
+  res: Response,
+): Promise<void> {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+
+  const filter: ActionItemFilter = {
+    participantIds: Array.isArray(body.participantIds) ? body.participantIds as string[] : undefined,
+    meetingSessionIds: Array.isArray(body.meetingSessionIds) ? body.meetingSessionIds as string[] : undefined,
+    priorities: Array.isArray(body.priorities) ? body.priorities as string[] : undefined,
+    overdueOnly: typeof body.overdueOnly === "boolean" ? body.overdueOnly : undefined,
+    lookbackDays: typeof body.lookbackDays === "number"
+      ? Math.min(365, Math.max(1, body.lookbackDays))
+      : undefined,
+    maxItems: typeof body.maxItems === "number"
+      ? Math.min(200, Math.max(1, body.maxItems))
+      : undefined,
+  };
+
+  try {
+    const result = await actionItemsAggregationService.aggregateActionItemsForParticipants(filter);
 
     res.status(200).json({ success: true, ...result });
   } catch {

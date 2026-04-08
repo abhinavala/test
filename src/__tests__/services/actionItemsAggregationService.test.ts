@@ -24,6 +24,7 @@ vi.mock("../../../generated/prisma", () => ({
 
 import {
   aggregateActionItems,
+  aggregateActionItemsForParticipants,
   getParticipantActionItems,
   getSessionActionItems,
   calculateRelevanceScore,
@@ -366,6 +367,88 @@ describe("actionItemsAggregationService", () => {
       const items = await getParticipantActionItems("user-alice", 30, 5);
 
       expect(items).toHaveLength(5);
+    });
+  });
+
+  describe("aggregateActionItemsForParticipants", () => {
+    it("filters by participant IDs", async () => {
+      mockFindMany.mockResolvedValue([
+        makeSummary("session-1", [
+          makeNextStep({ assigneeId: "user-alice", priority: "HIGH" }),
+          makeNextStep({ assigneeId: "user-bob", priority: "MEDIUM" }),
+        ]),
+      ]);
+
+      const result = await aggregateActionItemsForParticipants({
+        participantIds: ["user-alice"],
+      });
+
+      expect(result.totalItems).toBe(1);
+      expect(result.groups["user-alice"]).toHaveLength(1);
+    });
+
+    it("filters by overdueOnly", async () => {
+      const pastDate = subDays(new Date(), 5);
+      const futureDate = new Date(Date.now() + 86400000);
+      mockFindMany.mockResolvedValue([
+        makeSummary("session-1", [
+          makeNextStep({ assigneeId: "user-alice", dueDate: pastDate }),
+          makeNextStep({ assigneeId: "user-alice", dueDate: futureDate }),
+        ]),
+      ]);
+
+      const result = await aggregateActionItemsForParticipants({
+        overdueOnly: true,
+      });
+
+      expect(result.totalItems).toBe(1);
+      const item = Object.values(result.groups).flat()[0]!;
+      expect(item.isOverdue).toBe(true);
+    });
+
+    it("filters by priorities", async () => {
+      mockFindMany.mockResolvedValue([
+        makeSummary("session-1", [
+          makeNextStep({ assigneeId: "user-alice", priority: "URGENT" }),
+          makeNextStep({ assigneeId: "user-alice", priority: "LOW" }),
+        ]),
+      ]);
+
+      const result = await aggregateActionItemsForParticipants({
+        priorities: ["URGENT"],
+      });
+
+      expect(result.totalItems).toBe(1);
+      expect(Object.values(result.groups).flat()[0]!.priority).toBe("URGENT");
+    });
+
+    it("filters by meetingSessionIds", async () => {
+      mockFindMany.mockResolvedValue([
+        makeSummary("session-1", [
+          makeNextStep({ assigneeId: "user-alice" }),
+        ]),
+        makeSummary("session-2", [
+          makeNextStep({ assigneeId: "user-alice" }),
+        ]),
+      ]);
+
+      const result = await aggregateActionItemsForParticipants({
+        meetingSessionIds: ["session-1"],
+      });
+
+      expect(result.totalItems).toBe(1);
+      expect(Object.values(result.groups).flat()[0]!.meetingSessionId).toBe("session-1");
+    });
+
+    it("returns empty result with no matching filters", async () => {
+      mockFindMany.mockResolvedValue([]);
+
+      const result = await aggregateActionItemsForParticipants({
+        participantIds: ["nonexistent"],
+      });
+
+      expect(result.totalItems).toBe(0);
+      expect(result.strategy).toBe("by-participant");
     });
   });
 

@@ -48,6 +48,16 @@ export interface ParticipantFilter {
   roles: Array<"assignee" | "creator" | "mentioned">;
 }
 
+/** Filter criteria for querying action items. */
+export interface ActionItemFilter {
+  participantIds?: string[];
+  meetingSessionIds?: string[];
+  priorities?: string[];
+  overdueOnly?: boolean;
+  lookbackDays?: number;
+  maxItems?: number;
+}
+
 /** Priority weights used in relevance scoring. */
 export const PRIORITY_WEIGHTS: Record<string, number> = {
   URGENT: 4,
