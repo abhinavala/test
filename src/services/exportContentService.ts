@@ -51,6 +51,22 @@ export interface AggregateOptions {
   providers?: DataSourceProviders;
 }
 
+/** Options for content aggregation pipeline configuration. */
+export interface ContentAggregationOptions {
+  /** Output format (default: 'markdown'). */
+  format?: ExportFormat;
+  /** Use cached data if available (default: true). */
+  useCache?: boolean;
+  /** Cache TTL in milliseconds (default: 60000). */
+  cacheTtlMs?: number;
+  /** Override providers for dependency injection. */
+  providers?: DataSourceProviders;
+  /** Normalize speaker names across transcript and action items (default: true). */
+  normalizeSpeakers?: boolean;
+  /** Deduplicate action items by id (default: true). */
+  deduplicateActions?: boolean;
+}
+
 /** Result of an aggregation operation with diagnostic info. */
 export interface AggregationResult {
   content: ExportContent;
@@ -228,6 +244,63 @@ export function aggregateFromRawData(
     format,
     generatedAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Fetch meeting metadata from the session management system.
+ * Returns default metadata if the provider fails or is not configured.
+ *
+ * @param sessionId - The meeting session identifier.
+ * @param providers - Data source providers for fetching.
+ * @returns Meeting metadata or a default fallback.
+ */
+export async function fetchMeetingMetadata(
+  sessionId: string,
+  providers: DataSourceProviders = {},
+): Promise<MeetingMetadata> {
+  if (!providers.fetchMetadata) return defaultMetadata(sessionId);
+  try {
+    const metadata = await providers.fetchMetadata(sessionId);
+    return metadata ?? defaultMetadata(sessionId);
+  } catch {
+    return defaultMetadata(sessionId);
+  }
+}
+
+/**
+ * Resolve action item assignees by cross-referencing with transcript speakers.
+ * Ensures consistent speaker identification between action items and transcript.
+ * If an action item has an assigneeName that matches a transcript speaker
+ * (after normalization), the assigneeId is filled in from the transcript data.
+ *
+ * @param actionItems - Action items to resolve.
+ * @param transcript - Transcript segments for cross-referencing.
+ * @returns Action items with resolved assignee information.
+ */
+export function resolveActionItemAssignees(
+  actionItems: ActionItem[],
+  transcript: TranscriptSegment[],
+): ActionItem[] {
+  // Build a map of normalized speaker name -> speakerId from transcript
+  const speakerIdMap = new Map<string, string>();
+  for (const seg of transcript) {
+    if (seg.speakerId) {
+      const normalized = seg.speakerName.trim().replace(/\s+/g, " ").toLowerCase();
+      if (!speakerIdMap.has(normalized)) {
+        speakerIdMap.set(normalized, seg.speakerId);
+      }
+    }
+  }
+
+  return actionItems.map((item) => {
+    if (item.assigneeId || !item.assigneeName) return item;
+    const normalized = item.assigneeName.trim().replace(/\s+/g, " ").toLowerCase();
+    const speakerId = speakerIdMap.get(normalized);
+    if (speakerId) {
+      return { ...item, assigneeId: speakerId };
+    }
+    return item;
+  });
 }
 
 // --- Internal helpers ---
