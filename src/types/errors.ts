@@ -52,3 +52,44 @@ export class SummaryGenerationError extends Error {
     this.meetingSessionId = meetingSessionId;
   }
 }
+
+/** Error codes for meeting filter validation failures. */
+export type MeetingFilterValidationCode =
+  | "INVALID_DATE_RANGE"
+  | "INVALID_DURATION_RANGE"
+  | "INVALID_STATUS"
+  | "INVALID_PAGE"
+  | "INVALID_PAGE_SIZE"
+  | "INVALID_SORT_FIELD";
+
+/**
+ * Error thrown when meeting filter parameters fail validation.
+ */
+export class MeetingFilterValidationError extends Error {
+  readonly code: MeetingFilterValidationCode;
+  readonly field: string;
+
+  constructor(
+    message: string,
+    code: MeetingFilterValidationCode,
+    field: string
+  ) {
+    super(message);
+    this.name = "MeetingFilterValidationError";
+    this.code = code;
+    this.field = field;
+  }
+}
+
+/**
+ * Error thrown when a meeting cannot be found.
+ */
+export class MeetingNotFoundError extends Error {
+  readonly meetingId: string;
+
+  constructor(meetingId: string) {
+    super(`Meeting not found: ${meetingId}`);
+    this.name = "MeetingNotFoundError";
+    this.meetingId = meetingId;
+  }
+}
