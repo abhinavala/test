@@ -2,11 +2,9 @@ import type { MeetingSessionSummary } from "../types/meeting-summary.js";
 import type { ActionItem } from "../types/exportContent.js";
 import type { TranscriptSegment } from "../types/transcript.js";
 import type { SpeakerStats } from "../types/speaker-stats.js";
+import type { ExportOptions } from "../types/export.js";
 
-export interface ExportOptions {
-  format: "markdown" | "plaintext" | "csv" | "notion" | "jira";
-  meetingId: string;
-}
+export type { ExportOptions } from "../types/export.js";
 
 export interface MeetingExportData {
   title: string;

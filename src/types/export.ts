@@ -44,6 +44,14 @@ export type {
 export type { MeetingData } from "../utils/exportUtils.js";
 
 /**
+ * Options for exporting a meeting in a specific format.
+ */
+export interface ExportOptions {
+  format: "markdown" | "plaintext" | "csv" | "notion" | "jira";
+  meetingId: string;
+}
+
+/**
  * Error codes for ExportService failures.
  */
 export type ExportServiceErrorCode =
