@@ -35,6 +35,29 @@ export type SummaryGenerationErrorCode =
   | "INVALID_SESSION_STATE";
 
 /**
+ * Error thrown when meeting filter validation fails.
+ */
+export class MeetingFilterValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "MeetingFilterValidationError";
+  }
+}
+
+/**
+ * Error thrown when a meeting cannot be found.
+ */
+export class MeetingNotFoundError extends Error {
+  readonly meetingId: string;
+
+  constructor(meetingId: string) {
+    super(`Meeting not found: ${meetingId}`);
+    this.name = "MeetingNotFoundError";
+    this.meetingId = meetingId;
+  }
+}
+
+/**
  * Error thrown when meeting summary generation fails.
  */
 export class SummaryGenerationError extends Error {
