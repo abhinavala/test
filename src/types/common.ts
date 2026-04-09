@@ -27,3 +27,8 @@ export interface PaginationParams {
   page?: number;
   pageSize?: number;
 }
+
+/** Generic search/query parameters from URL query strings. */
+export interface SearchParams {
+  [key: string]: string | string[] | undefined;
+}

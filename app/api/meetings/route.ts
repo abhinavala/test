@@ -8,14 +8,11 @@ import type {
 import type {
   PaginatedResponse,
   PaginationParams,
+  SearchParams,
 } from "../../../src/types/common.js";
 import {
   MeetingFilterValidationError,
 } from "../../../src/types/errors.js";
-
-export interface SearchParams {
-  [key: string]: string | string[] | undefined;
-}
 
 interface RouteRequest {
   query: SearchParams;
