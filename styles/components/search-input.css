@@ -1,0 +1,88 @@
+:root {
+  --search-input-bg: #1a1a1a;
+  --search-input-border: #333333;
+  --search-input-text: #e0e0e0;
+  --search-input-placeholder: #888888;
+  --search-input-focus-border: #ba7517;
+  --search-input-clear-color: #888888;
+  --search-input-clear-hover: #e0e0e0;
+  --search-input-icon-color: #888888;
+  --search-input-radius: 6px;
+  --search-input-height: 40px;
+  --search-input-font-size: 14px;
+}
+
+[data-theme="light"] {
+  --search-input-bg: #ffffff;
+  --search-input-border: #d0d0d0;
+  --search-input-text: #1a1a1a;
+  --search-input-placeholder: #999999;
+  --search-input-focus-border: #ba7517;
+  --search-input-clear-color: #999999;
+  --search-input-clear-hover: #333333;
+  --search-input-icon-color: #999999;
+}
+
+.search-input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.search-input__icon {
+  position: absolute;
+  left: 12px;
+  color: var(--search-input-icon-color);
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.search-input__field {
+  width: 100%;
+  height: var(--search-input-height);
+  padding: 0 36px 0 40px;
+  background: var(--search-input-bg);
+  border: 1px solid var(--search-input-border);
+  border-radius: var(--search-input-radius);
+  color: var(--search-input-text);
+  font-size: var(--search-input-font-size);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.search-input__field::placeholder {
+  color: var(--search-input-placeholder);
+}
+
+.search-input__field:focus {
+  border-color: var(--search-input-focus-border);
+}
+
+.search-input__clear {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--search-input-clear-color);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.search-input__clear:hover {
+  color: var(--search-input-clear-hover);
+}
+
+.search-input__clear--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
