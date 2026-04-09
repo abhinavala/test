@@ -1,26 +1,6 @@
-export interface DashboardStats {
-  totalMeetings: number;
-  totalHours: number;
-  averageDuration: number;
-  activeParticipants: number;
-  actionItemCount: number;
-}
+import type { DashboardData, DashboardStats, RecentMeeting } from '../types/dashboard.js';
 
-export interface RecentMeeting {
-  id: string;
-  title: string;
-  date: string;
-  duration: number;
-  status: 'completed' | 'in-progress' | 'scheduled';
-  participantCount: number;
-  participants: string[];
-  actionItemCount: number;
-}
-
-export interface DashboardData {
-  stats: DashboardStats;
-  recentMeetings: RecentMeeting[];
-}
+export type { DashboardData, DashboardStats, RecentMeeting };
 
 export interface UseDashboardDataResult {
   data: DashboardData | null;
@@ -47,6 +27,30 @@ export async function fetchDashboardData(
   const recentMeetings: RecentMeeting[] = await meetingsResponse.json() as RecentMeeting[];
 
   return { stats, recentMeetings };
+}
+
+export function useDashboardData(config?: { baseUrl?: string; refreshIntervalMs?: number }): UseDashboardDataResult {
+  const baseUrl = config?.baseUrl ?? '';
+  const refreshIntervalMs = config?.refreshIntervalMs ?? DEFAULT_REFRESH_INTERVAL_MS;
+
+  let data: DashboardData | null = null;
+  let loading = true;
+  let error: string | null = null;
+
+  const refresh = async (): Promise<void> => {
+    try {
+      loading = true;
+      error = null;
+      data = await fetchDashboardData(baseUrl);
+    } catch (err) {
+      error = err instanceof Error ? err.message : 'Failed to load dashboard data';
+      data = null;
+    } finally {
+      loading = false;
+    }
+  };
+
+  return { data, loading, error, refresh };
 }
 
 export function createDashboardDataHook(config?: { baseUrl?: string; refreshIntervalMs?: number }) {
