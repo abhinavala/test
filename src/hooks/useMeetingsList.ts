@@ -259,4 +259,34 @@ export function createMeetingsListManager(options: UseMeetingsListOptions = {}) 
   };
 }
 
+/**
+ * Create a meetings list hook result from a manager instance.
+ *
+ * Provides the standard hook-like interface for managing meetings list state
+ * with search, filtering, sorting, and pagination.
+ */
+export function useMeetingsList(
+  options: UseMeetingsListOptions = {},
+): UseMeetingsListResult {
+  const manager = createMeetingsListManager(options);
+  const state = manager.getState();
+
+  return {
+    data: state.data,
+    filters: state.filters,
+    isLoading: state.isLoading,
+    error: state.error,
+    page: state.page,
+    pageSize: state.pageSize,
+    setSearchQuery: manager.setSearchQuery,
+    setStatusFilter: manager.setStatusFilter,
+    setDateRange: manager.setDateRange,
+    setSortBy: manager.setSortBy,
+    setPage: manager.setPage,
+    refresh: async () => {
+      await manager.loadData();
+    },
+  };
+}
+
 export { DEFAULT_PAGE_SIZE, DEBOUNCE_DELAY_MS };
