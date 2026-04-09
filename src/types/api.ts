@@ -1,5 +1,20 @@
 import type { MeetingSessionSummary } from "./meeting-summary.js";
 
+/** Configuration for the API client. */
+export interface ApiClientConfig {
+  baseUrl: string;
+  timeout: number;
+  retryAttempts: number;
+}
+
+/** Configuration for an individual API request. */
+export interface RequestConfig {
+  method: string;
+  url: string;
+  data?: any;
+  headers?: Record<string, string>;
+}
+
 /** Request body for triggering summary generation. */
 export interface SummaryGenerationRequest {
   meetingSessionId: string;
