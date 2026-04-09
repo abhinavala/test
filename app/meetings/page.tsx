@@ -47,38 +47,51 @@ async function fetchMeetings(
   return response.json() as Promise<MeetingsApiResponse>;
 }
 
-export default function MeetingsPage(): JSX.Element {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+export interface UseMeetingsDataOptions {
+  initialFilters: MeetingFilters;
+  initialPage: number;
+  initialSortField: SortField;
+  initialSortOrder: SortOrder;
+  pageSize?: number;
+}
+
+export interface UseMeetingsDataResult {
+  meetings: Meeting[];
+  loading: boolean;
+  error: string | null;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  total: number;
+  sortField: SortField;
+  sortOrder: SortOrder;
+  filters: MeetingFilters;
+  setFilters: (filters: MeetingFilters) => void;
+  setPage: (page: number) => void;
+  setSortField: (field: SortField) => void;
+  setSortOrder: (order: SortOrder) => void;
+  retry: () => void;
+}
+
+export function useMeetingsData(options: UseMeetingsDataOptions): UseMeetingsDataResult {
+  const {
+    initialFilters,
+    initialPage,
+    initialSortField,
+    initialSortOrder,
+    pageSize: configuredPageSize = 20,
+  } = options;
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [page, setPage] = useState(() => Number(searchParams.get('page') ?? '1'));
-  const [pageSize] = useState(20);
+  const [page, setPage] = useState(initialPage);
+  const [pageSize] = useState(configuredPageSize);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [sortField, setSortField] = useState<SortField>(
-    () => (searchParams.get('sortField') as SortField) ?? 'date',
-  );
-  const [sortOrder, setSortOrder] = useState<SortOrder>(
-    () => (searchParams.get('sortOrder') as SortOrder) ?? 'desc',
-  );
-  const [filters, setFilters] = useState<MeetingFilters>(() =>
-    searchParamsToFilters(new URLSearchParams(searchParams.toString())),
-  );
-
-  const updateUrl = useCallback(
-    (newFilters: MeetingFilters, newPage: number, newSortField: SortField, newSortOrder: SortOrder) => {
-      const params = filtersToSearchParams(newFilters);
-      if (newPage > 1) params.set('page', String(newPage));
-      if (newSortField !== 'date') params.set('sortField', newSortField);
-      if (newSortOrder !== 'desc') params.set('sortOrder', newSortOrder);
-      const query = params.toString();
-      router.push(query ? `/meetings?${query}` : '/meetings', { scroll: false });
-    },
-    [router],
-  );
+  const [sortField, setSortField] = useState<SortField>(initialSortField);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(initialSortOrder);
+  const [filters, setFilters] = useState<MeetingFilters>(initialFilters);
 
   const loadMeetings = useCallback(async () => {
     setLoading(true);
@@ -103,13 +116,79 @@ export default function MeetingsPage(): JSX.Element {
     void loadMeetings();
   }, [loadMeetings]);
 
+  const retry = useCallback(() => {
+    void loadMeetings();
+  }, [loadMeetings]);
+
+  return {
+    meetings,
+    loading,
+    error,
+    page,
+    pageSize,
+    totalPages,
+    total,
+    sortField,
+    sortOrder,
+    filters,
+    setFilters,
+    setPage,
+    setSortField,
+    setSortOrder,
+    retry,
+  };
+}
+
+export default function MeetingsPage(): JSX.Element {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const initialFilters = searchParamsToFilters(new URLSearchParams(searchParams.toString()));
+  const initialPage = Number(searchParams.get('page') ?? '1');
+  const initialSortField = (searchParams.get('sortField') as SortField) ?? 'date';
+  const initialSortOrder = (searchParams.get('sortOrder') as SortOrder) ?? 'desc';
+
+  const {
+    meetings,
+    loading,
+    error,
+    page,
+    totalPages,
+    total,
+    sortField,
+    sortOrder,
+    filters,
+    setFilters,
+    setPage,
+    setSortField,
+    setSortOrder,
+    retry,
+  } = useMeetingsData({
+    initialFilters,
+    initialPage,
+    initialSortField,
+    initialSortOrder,
+  });
+
+  const updateUrl = useCallback(
+    (newFilters: MeetingFilters, newPage: number, newSortField: SortField, newSortOrder: SortOrder) => {
+      const params = filtersToSearchParams(newFilters);
+      if (newPage > 1) params.set('page', String(newPage));
+      if (newSortField !== 'date') params.set('sortField', newSortField);
+      if (newSortOrder !== 'desc') params.set('sortOrder', newSortOrder);
+      const query = params.toString();
+      router.push(query ? `/meetings?${query}` : '/meetings', { scroll: false });
+    },
+    [router],
+  );
+
   const handleFiltersChange = useCallback(
     (newFilters: MeetingFilters) => {
       setFilters(newFilters);
       setPage(1);
       updateUrl(newFilters, 1, sortField, sortOrder);
     },
-    [sortField, sortOrder, updateUrl],
+    [sortField, sortOrder, updateUrl, setFilters, setPage],
   );
 
   const handleMeetingClick = useCallback(
@@ -131,7 +210,7 @@ export default function MeetingsPage(): JSX.Element {
       setPage(1);
       updateUrl(filters, 1, field, newOrder);
     },
-    [sortField, sortOrder, filters, updateUrl],
+    [sortField, sortOrder, filters, updateUrl, setSortField, setSortOrder, setPage],
   );
 
   const handlePageChange = useCallback(
@@ -139,12 +218,8 @@ export default function MeetingsPage(): JSX.Element {
       setPage(newPage);
       updateUrl(filters, newPage, sortField, sortOrder);
     },
-    [filters, sortField, sortOrder, updateUrl],
+    [filters, sortField, sortOrder, updateUrl, setPage],
   );
-
-  const handleRetry = useCallback(() => {
-    void loadMeetings();
-  }, [loadMeetings]);
 
   return (
     <div className="meetings-page">
@@ -175,7 +250,7 @@ export default function MeetingsPage(): JSX.Element {
             {field.charAt(0).toUpperCase() + field.slice(1)}
             {sortField === field && (
               <span className="meetings-page__sort-indicator" aria-hidden="true">
-                {sortOrder === 'asc' ? ' \u2191' : ' \u2193'}
+                {sortOrder === 'asc' ? ' ↑' : ' ↓'}
               </span>
             )}
           </button>
@@ -186,7 +261,7 @@ export default function MeetingsPage(): JSX.Element {
         {error && !loading ? (
           <div className="meetings-page__error" role="alert">
             <p className="meetings-page__error-message">{error}</p>
-            <button className="meetings-page__retry-btn" onClick={handleRetry}>
+            <button className="meetings-page__retry-btn" onClick={retry}>
               Retry
             </button>
           </div>
