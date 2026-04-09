@@ -31,3 +31,50 @@ export interface SummaryListResponse {
   summaries: MeetingSessionSummary[];
   pagination: PaginationMetadata;
 }
+
+/** Configuration for the API client instance. */
+export interface ApiClientConfig {
+  baseUrl: string;
+  timeout: number;
+  retryAttempts: number;
+}
+
+/** Configuration for an individual HTTP request. */
+export interface RequestConfig {
+  method: string;
+  url: string;
+  data?: any;
+  headers?: Record<string, string>;
+}
+
+/** Standardized API response wrapper. */
+export interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+  status: number;
+  message?: string;
+}
+
+/** Error codes for API client errors. */
+export type ApiErrorCode =
+  | "NETWORK_ERROR"
+  | "AUTH_ERROR"
+  | "VALIDATION_ERROR"
+  | "SERVER_ERROR"
+  | "TIMEOUT_ERROR"
+  | "UNKNOWN_ERROR";
+
+/** Standardized API error. */
+export class ApiError extends Error {
+  readonly code: ApiErrorCode;
+  readonly status: number;
+  readonly details?: unknown;
+
+  constructor(message: string, code: ApiErrorCode, status: number, details?: unknown) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+    this.status = status;
+    this.details = details;
+  }
+}
