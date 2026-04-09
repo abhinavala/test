@@ -46,6 +46,12 @@ export interface MeetingSortParams {
   direction: SortDirection;
 }
 
+/** Sort options including default values for meeting list queries. */
+export interface MeetingSortOptions {
+  field: MeetingSortField;
+  direction: SortDirection;
+}
+
 /** Date range filter for meetings. */
 export interface DateRange {
   from?: string;
