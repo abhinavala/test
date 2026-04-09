@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   createMeetingsFilterController,
+  useFilterState,
   filtersToSearchParams,
   searchParamsToFilters,
   getMeetingsFilterAttributes,
@@ -392,5 +393,89 @@ describe("getDateRangeErrorAttributes", () => {
     expect(attrs.visible).toBe(true);
     expect(attrs.message).toBe("End date must be after start date");
     expect(attrs.role).toBe("alert");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// useFilterState
+// ---------------------------------------------------------------------------
+
+describe("useFilterState", () => {
+  it("initializes with provided filters", () => {
+    const state = useFilterState({ initialFilters: { search: "hello" } });
+    expect(state.filters.search).toBe("hello");
+    expect(state.hasActiveFilters).toBe(true);
+    expect(state.activeFilterCount).toBe(1);
+  });
+
+  it("setSearch updates filters and notifies", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({ onFiltersChange: onChange });
+
+    state.setSearch("standup");
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ search: "standup" }));
+  });
+
+  it("setStatus updates filters and notifies", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({ onFiltersChange: onChange });
+
+    state.setStatus(["completed", "scheduled"]);
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ status: ["completed", "scheduled"] }),
+    );
+  });
+
+  it("setDateRange validates and rejects invalid ranges", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({ onFiltersChange: onChange });
+
+    state.setDateRange({ from: "2026-03-15", to: "2026-03-01" });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(state.dateRangeError).toBe("End date must be after start date");
+  });
+
+  it("setDateRange accepts valid ranges", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({ onFiltersChange: onChange });
+
+    state.setDateRange({ from: "2026-01-01", to: "2026-01-31" });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ dateRange: { from: "2026-01-01", to: "2026-01-31" } }),
+    );
+    expect(state.dateRangeError).toBeNull();
+  });
+
+  it("setDuration updates filters", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({ onFiltersChange: onChange });
+
+    state.setDuration({ min: 30, max: 60 });
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ duration: { min: 30, max: 60 } }),
+    );
+  });
+
+  it("setParticipants updates filters", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({ onFiltersChange: onChange });
+
+    state.setParticipants(["alice"]);
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ participants: ["alice"] }),
+    );
+  });
+
+  it("clearAll resets all filters", () => {
+    const onChange = vi.fn();
+    const state = useFilterState({
+      initialFilters: { search: "test", status: ["completed"] },
+      onFiltersChange: onChange,
+    });
+
+    state.clearAll();
+    expect(onChange).toHaveBeenCalledWith({});
+    expect(state.hasActiveFilters).toBe(false);
+    expect(state.activeFilterCount).toBe(0);
   });
 });

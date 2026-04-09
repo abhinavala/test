@@ -377,4 +377,83 @@ export function getDateRangeErrorAttributes(error: string | null): {
   };
 }
 
+// ---------------------------------------------------------------------------
+// useFilterState — standalone filter state manager
+// ---------------------------------------------------------------------------
+
+export interface UseFilterStateOptions {
+  initialFilters?: MeetingFilters;
+  onFiltersChange?: (filters: MeetingFilters) => void;
+}
+
+export interface UseFilterStateReturn {
+  filters: MeetingFilters;
+  setSearch: (value: string) => void;
+  setStatus: (status: MeetingStatus[]) => void;
+  setDateRange: (range: DateRange | undefined) => void;
+  setDuration: (range: DurationRange | undefined) => void;
+  setParticipants: (participants: string[]) => void;
+  clearAll: () => void;
+  hasActiveFilters: boolean;
+  activeFilterCount: number;
+  dateRangeError: string | null;
+}
+
+export function useFilterState(options: UseFilterStateOptions = {}): UseFilterStateReturn {
+  let filters: MeetingFilters = { ...(options.initialFilters ?? {}) };
+  let dateRangeError: string | null = validateDateRange(filters.dateRange);
+
+  function notify(): void {
+    options.onFiltersChange?.({ ...filters });
+  }
+
+  function setSearch(value: string): void {
+    filters = { ...filters, search: value || undefined };
+    notify();
+  }
+
+  function setStatus(status: MeetingStatus[]): void {
+    filters = { ...filters, status: status.length > 0 ? status : undefined };
+    notify();
+  }
+
+  function setDateRange(range: DateRange | undefined): void {
+    const error = validateDateRange(range);
+    dateRangeError = error;
+    if (!error) {
+      filters = { ...filters, dateRange: range };
+      notify();
+    }
+  }
+
+  function setDuration(range: DurationRange | undefined): void {
+    filters = { ...filters, duration: range };
+    notify();
+  }
+
+  function setParticipants(participants: string[]): void {
+    filters = { ...filters, participants: participants.length > 0 ? participants : undefined };
+    notify();
+  }
+
+  function clearAll(): void {
+    filters = {};
+    dateRangeError = null;
+    notify();
+  }
+
+  return {
+    get filters() { return { ...filters }; },
+    setSearch,
+    setStatus,
+    setDateRange,
+    setDuration,
+    setParticipants,
+    clearAll,
+    get hasActiveFilters() { return !isEmptyFilters(filters); },
+    get activeFilterCount() { return countActiveFilters(filters); },
+    get dateRangeError() { return dateRangeError; },
+  };
+}
+
 export default createMeetingsFilterController;
