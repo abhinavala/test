@@ -1,0 +1,11 @@
+/* Dark theme — primary theme for Aria AI */
+:root,
+[data-theme='dark'] {
+  --color-background: #0A0A0B;
+  --color-surface: #141416;
+  --color-surface-hover: #1C1C1F;
+  --color-text: #F0F0F2;
+  --color-text-secondary: #9B9BA4;
+  --color-border: #2A2A2E;
+  --color-border-hover: #3A3A3F;
+}

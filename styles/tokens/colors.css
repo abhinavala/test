@@ -1,0 +1,20 @@
+/* Color design tokens for Aria AI */
+:root {
+  /* Primary accent — amber for voice/audio data */
+  --color-primary: #BA7517;
+  --color-primary-hover: #D4891B;
+  --color-primary-active: #A0640F;
+
+  /* Accent (alias for primary) */
+  --color-accent: #BA7517;
+  --color-accent-hover: #D4891B;
+  --color-accent-active: #A0640F;
+
+  /* Semantic colors */
+  --color-error: #EF4444;
+  --color-error-hover: #DC2626;
+  --color-warning: #F59E0B;
+  --color-warning-hover: #D97706;
+  --color-success: #22C55E;
+  --color-success-hover: #16A34A;
+}

@@ -1,0 +1,10 @@
+/* Light theme for Aria AI */
+[data-theme='light'] {
+  --color-background: #FAFAFA;
+  --color-surface: #FFFFFF;
+  --color-surface-hover: #F5F5F5;
+  --color-text: #171717;
+  --color-text-secondary: #6B7280;
+  --color-border: #E5E5E5;
+  --color-border-hover: #D4D4D4;
+}

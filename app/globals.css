@@ -1,0 +1,37 @@
+/* Aria AI — Global styles */
+@import '../styles/tokens/colors.css';
+@import '../styles/tokens/typography.css';
+@import '../styles/tokens/spacing.css';
+@import '../styles/themes/dark.css';
+@import '../styles/themes/light.css';
+
+/* Base reset and defaults */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--color-text);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Theme transition */
+html,
+html * {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Monospace utility for numeric data */
+.font-mono,
+[data-numeric] {
+  font-family: var(--font-mono);
+}
